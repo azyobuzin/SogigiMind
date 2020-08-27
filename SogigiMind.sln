@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SogigiMind", "SogigiMind\SogigiMind.csproj", "{FB2865AF-882D-4F49-B62A-7DADDE1918F4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FB2865AF-882D-4F49-B62A-7DADDE1918F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB2865AF-882D-4F49-B62A-7DADDE1918F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB2865AF-882D-4F49-B62A-7DADDE1918F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB2865AF-882D-4F49-B62A-7DADDE1918F4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0A9F6F4C-3740-4D9B-96D5-92ED1B405EC3}
+	EndGlobalSection
+EndGlobal
