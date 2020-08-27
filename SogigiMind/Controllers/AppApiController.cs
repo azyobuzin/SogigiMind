@@ -1,21 +1,54 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using SogigiMind.Services;
 
 namespace SogigiMind.Controllers
 {
     [ApiController, Authorize(Roles = "App")]
     public class AppApiController : ControllerBase
     {
+        private readonly ILogger _logger;
+
+        public AppApiController(ILogger<AppApiController>? logger)
+        {
+            this._logger = (ILogger?)logger ?? NullLogger.Instance;
+        }
+
         /// <summary>
         /// 指定された URL のサムネイルの作成を予約します。
         /// </summary>
         [HttpPost]
-        public void Prefetch([FromBody] PrefetchRequest request)
+        public void Prefetch([FromBody] PrefetchRequest request, [FromServices] ThumbnailService thumbnailService)
         {
-            // TODO: kick prefetcher
+            if (request?.Urls == null) return;
+
+            Task.Run(() =>
+            {
+                foreach (var url in request.Urls)
+                {
+                    thumbnailService.GetOrCreateThumbnailAsync(url, request.Sensitive, request.CanUseToTrain)
+                        .ContinueWith(
+                            (t, state) =>
+                            {
+                                if (t.Exception is { } ex)
+                                {
+                                    this._logger.LogError(ex, "Failed to prefetch {Url}.", state);
+                                }
+                            },
+                            url,
+                            CancellationToken.None,
+                            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default
+                        );
+                }
+            });
         }
 
         /// <summary>
@@ -23,9 +56,21 @@ namespace SogigiMind.Controllers
         /// エラーが発生した場合は <paramref name="url"/> へリダイレクトします。
         /// </summary>
         [HttpGet, HttpHead, HttpPost]
-        public IActionResult Thumbnail(string url)
+        public async Task<IActionResult> Thumbnail(string url, [FromServices] ThumbnailService thumbnailService)
         {
-            throw new NotImplementedException();
+            try
+            {
+                var result = await thumbnailService.GetOrCreateThumbnailAsync(url, null, null);
+
+                if (result != null)
+                    return this.File(result.Content, result.ContentType);
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex, "Failed to get thumbnail. ({Url})", url);
+            }
+
+            return this.Redirect(url);
         }
 
         /// <summary>

@@ -1,12 +1,14 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
+using MongoDB.Driver;
 
 namespace SogigiMind.Models
 {
-    public class FetchStatus
-    {
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。
 
+    public class FetchStatus
+    {
         /// <summary>
         /// 正規化された URL
         /// </summary>
@@ -18,6 +20,8 @@ namespace SogigiMind.Models
         public string? ContentType { get; set; }
 
         public string? ContentHash { get; set; }
+
+        public ThumbnailInfo? ThumbnailInfo { get; set; }
 
         public DateTimeOffset LastAttempt { get; set; }
 
@@ -31,7 +35,19 @@ namespace SogigiMind.Models
         /// </summary>
         public bool? CanUseToTrain { get; set; }
 
-#pragma warning restore CS8618
+        public static async Task CreateIndexesAsync(IMongoCollection<FetchStatus> collection)
+        {
+            await collection.Indexes
+                .CreateOneAsync(new CreateIndexModel<FetchStatus>(
+                    Builders<FetchStatus>.IndexKeys.Hashed(x => x.Url),
+                    new CreateIndexOptions() { Unique = true }))
+                .ConfigureAwait(false);
+
+            await collection.Indexes
+                .CreateOneAsync(new CreateIndexModel<FetchStatus>(
+                    Builders<FetchStatus>.IndexKeys.Descending(x => x.LastAttempt)))
+                .ConfigureAwait(false);
+        }
     }
 
     public enum FetchStatusKind
@@ -47,5 +63,17 @@ namespace SogigiMind.Models
         /// ダウンロードしたデータの処理に失敗した。
         /// </summary>
         InternalError,
+    }
+
+    public class ThumbnailInfo
+    {
+        [Required]
+        public string ContentType { get; set; }
+
+        public int Width { get; set; }
+
+        public int Height { get; set; }
+
+        public bool IsAnimation { get; set; }
     }
 }

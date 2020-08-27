@@ -15,14 +15,16 @@ using CliWrap.Buffered;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.GridFS;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
+using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SogigiMind.Infrastructures;
 using SogigiMind.Models;
 using SogigiMind.Options;
 
@@ -35,14 +37,9 @@ namespace SogigiMind.Services
         private readonly ILogger _logger;
         private readonly Dictionary<string, Task<ThumbnailResult?>> _tasks = new Dictionary<string, Task<ThumbnailResult?>>();
         private readonly HttpClient _httpClient;
-        private bool _ffmpegInitialized;
+        private Task? _initializeIndexesTask;
 
         private const string ThumbnailPrefix = "thumbnail/";
-        private const string TrainPrefix = "train/";
-
-        /// <summary>学習データとして使用する画像サイズ</summary>
-        private static readonly Size s_trainImageSize = new Size(128, 128);
-
         private static readonly TimeSpan s_ffmpegTimeout = TimeSpan.FromSeconds(10);
 
         public ThumbnailService(IMongoDatabase mongoDatabase, IOptionsMonitor<ThumbnailOptions> options, ILogger<ThumbnailService>? logger)
@@ -64,7 +61,7 @@ namespace SogigiMind.Services
             };
         }
 
-        public Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
+        public async Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
         {
             url = new Uri(url).AbsoluteUri; // Normalize
 
@@ -75,35 +72,61 @@ namespace SogigiMind.Services
                 if (!this._tasks.TryGetValue(url, out task))
                 {
                     task = Task.Run(() => this.GetOrCreateThumbnailCoreAsync(url));
-
                     this._tasks[url] = task;
                 }
             }
 
-            return task;
+            var result = await task.ConfigureAwait(false);
+
+            if (sensitive != null || canUseToTrain == true)
+            {
+                try
+                {
+                    var updates = new List<UpdateDefinition<FetchStatus>>(2);
+
+                    if (sensitive != null)
+                        updates.Add(Builders<FetchStatus>.Update.Set(x => x.Sensitive, sensitive.Value));
+
+                    if (canUseToTrain == true)
+                        updates.Add(Builders<FetchStatus>.Update.Set(x => x.CanUseToTrain, true));
+
+                    await this.GetFetchStatusCollection()
+                        .UpdateOneAsync(x => x.Url == url, Builders<FetchStatus>.Update.Combine(updates))
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Failed to write Sensitive and CanUseToTrain. ({Url})", url);
+                }
+            }
+
+            return result;
         }
+
+        private IMongoCollection<FetchStatus> GetFetchStatusCollection()
+            => this._mongoDatabase.GetCollection<FetchStatus>(nameof(FetchStatus));
 
         private async Task<ThumbnailResult?> GetOrCreateThumbnailCoreAsync(string url)
         {
-            var collection = this._mongoDatabase.GetCollection<FetchStatus>(nameof(FetchStatus));
             string? downloadPath = null;
-            string contentType;
 
             try
             {
+                await this.InitializeIndexesAsync().ConfigureAwait(false);
+
+                var collection = this.GetFetchStatusCollection();
+                var gridFs = new GridFSBucket(this._mongoDatabase);
+                string contentType;
+
                 // すでにあるかを確認
                 var fetchStatus = await collection.Find(x => x.Url == url).FirstOrDefaultAsync().ConfigureAwait(false);
 
-                if (fetchStatus?.ContentHash != null)
+                if (fetchStatus?.ContentHash is { } contentHash && fetchStatus.ThumbnailInfo is { ContentType: var thumbnailContentType })
                 {
                     try
                     {
-                        var gridFs = new GridFSBucket(this._mongoDatabase);
-                        var fileName = ThumbnailPrefix + fetchStatus.ContentHash;
-                        using var stream = await gridFs.OpenDownloadStreamByNameAsync(fileName).ConfigureAwait(false);
-                        using var ms = new MemoryStream(checked((int)stream.FileInfo.Length));
-                        await stream.CopyToAsync(ms).ConfigureAwait(false);
-                        return new ThumbnailResult(stream.FileInfo.Metadata.GetValue("contentType").AsString, ms.ToArray());
+                        var bytes = await gridFs.DownloadAsBytesByNameAsync(ThumbnailPathInGridFs(contentHash)).ConfigureAwait(false);
+                        return new ThumbnailResult(thumbnailContentType, bytes);
                     }
                     catch (GridFSFileNotFoundException) { }
                 }
@@ -137,51 +160,105 @@ namespace SogigiMind.Services
                     downloadPath = Path.GetTempFileName();
                     using var dstStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
 
-                    // MaxFileSize までダウンロードする。超えた分は切り捨ててデコーダがうまくやってくれるかに任せる。
-                    // （faststart じゃない mp4 は死ぬんだよな……）
                     await this.CopyStreamAsync(srcStream, dstStream).ConfigureAwait(false);
                 }
-                catch (Exception ex) 
+                catch (Exception ex)
                 {
-                    var isRemoteErrr = ex is OperationCanceledException || ex is HttpRequestException || ex is IOException;
+                    var isRemoteError = ex is OperationCanceledException || ex is HttpRequestException || ex is IOException;
                     this._logger.LogWarning(ex, "Failed to fetch {Url}.", url);
-                    await UpdateStatusAsync(isRemoteErrr ? FetchStatusKind.RemoteError : FetchStatusKind.InternalError).ConfigureAwait(false);
+                    await UpdateStatusAsync(isRemoteError ? FetchStatusKind.RemoteError : FetchStatusKind.InternalError).ConfigureAwait(false);
                     return null;
                 }
 
-                var hashTask = Task.Run(() => ComputeFileHashAsync(downloadPath));
+                InternalThumbnailResult? internalResult;
 
                 try
                 {
+                    var hashTask = Task.Run(() => ComputeFileHashAsync(downloadPath)).TouchException();
+
                     // 画像として処理できるか試す
-                    var result = await this.TryCreateThumbnailAsync(downloadPath, url).ConfigureAwait(false);
+                    internalResult = await this.TryCreateThumbnailAsync(downloadPath, url).ConfigureAwait(false);
 
                     // ImageSharp で処理できなかったら FFmpeg に入力してみる
-                    result ??= await this.TryCreateThumbnailForVideoAsync(downloadPath, url, contentType).ConfigureAwait(false);
+                    internalResult ??= await this.TryCreateThumbnailForVideoAsync(downloadPath, url, contentType).ConfigureAwait(false);
 
-                }catch (Exception ex)
-                {
-                    // TODO: ???
+                    contentHash = await hashTask.ConfigureAwait(false);
                 }
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Failed to create thumbnail. ({Url})", url);
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Failed to create thumbnail. ({Url})", url);
 
-                // エラーを起こしたら InternalError 扱い
-                if (!(ex is MongoConnectionException))
+                    // エラーを起こしたら InternalError 扱い
+                    await UpdateStatusAsync(FetchStatusKind.InternalError).ConfigureAwait(false);
+
+                    return null;
+                }
+
+                var result = internalResult != null
+                    ? new ThumbnailResult(internalResult.ThumbnailContentType, internalResult.Thumbnail)
+                    : null;
+
+                try
+                {
+                    var operation = Builders<FetchStatus>.Update
+                        .SetOnInsert(x => x.Url, url)
+                        .Set(x => x.Status, internalResult != null ? FetchStatusKind.Success : FetchStatusKind.InternalError)
+                        .Set(x => x.ContentType, internalResult?.SourceContentType ?? contentType)
+                        .Set(x => x.ContentHash, contentHash)
+                        .Set(x => x.LastAttempt, DateTimeOffset.Now);
+
+                    if (internalResult != null)
+                    {
+                        await gridFs.UploadFromBytesAsync(
+                            ThumbnailPathInGridFs(contentHash),
+                            internalResult.Thumbnail,
+                            new GridFSUploadOptions()
+                            {
+                                Metadata = new BsonDocument()
+                                {
+                                    { "url", url },
+                                    {"contentType", internalResult.ThumbnailContentType },
+                                }
+                            }
+                        ).ConfigureAwait(false);
+
+                        // GridFS にアップロードできたら ThumbnailInfo を埋める
+                        operation = operation.Set(x => x.ThumbnailInfo, new ThumbnailInfo()
+                        {
+                            ContentType = internalResult.ThumbnailContentType,
+                            Width = internalResult.ThumbnailSize.Width,
+                            Height = internalResult.ThumbnailSize.Height,
+                            IsAnimation = internalResult.IsAnimation,
+                        });
+                    }
+
+                    await collection.UpdateOneAsync(x => x.Url == url, operation, new UpdateOptions() { IsUpsert = true }).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Failed to write thumbnail to DB. ({Url})", url);
+                }
+
+                return result;
+
+                async Task UpdateStatusAsync(FetchStatusKind status)
                 {
                     try
                     {
-                        await UpdateStatusAsync(FetchStatusKind.InternalError).ConfigureAwait(false);
+                        await collection.UpdateOneAsync(
+                            x => x.Url == url,
+                            Builders<FetchStatus>.Update
+                                .SetOnInsert(x => x.Url, url)
+                                .Set(x => x.Status, status)
+                                .Set(x => x.LastAttempt, DateTime.Now),
+                            new UpdateOptions() { IsUpsert = true }
+                        );
                     }
-                    catch (Exception ex2)
+                    catch (Exception ex)
                     {
-                        this._logger.LogError(ex2, "Failed to write InternalError status. ({Url})", url);
+                        this._logger.LogError(ex, "Failed to write error status. ({Url})", url);
                     }
                 }
-
-                return null;
             }
             finally
             {
@@ -201,18 +278,6 @@ namespace SogigiMind.Services
                 lock (this._tasks)
                     this._tasks.Remove(url);
             }
-
-            Task UpdateStatusAsync(FetchStatusKind status)
-            {
-                return collection.UpdateOneAsync(
-                    x => x.Url == url,
-                    Builders<FetchStatus>.Update
-                        .Set(x => x.Url, url)
-                        .Set(x => x.Status, status)
-                        .Set(x => x.LastAttempt, DateTime.Now),
-                    new UpdateOptions() { IsUpsert = true }
-                );
-            }
         }
 
         private static bool IsAcceptableContentType(string contentType)
@@ -223,6 +288,9 @@ namespace SogigiMind.Services
                 || string.Equals(contentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// 最大 <see cref="ThumbnailOptions.DownloadSizeLimit"/> バイトのデータをコピーします。
+        /// </summary>
         private Task CopyStreamAsync(Stream srcStream, Stream dstStream)
         {
             var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
@@ -267,47 +335,57 @@ namespace SogigiMind.Services
         {
             using var imageStream = new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 16 * 1024, FileOptions.Asynchronous);
 
-            var imageFormat = await Image.DetectFormatAsync(imageStream).ConfigureAwait(false);
-            if (imageFormat == null) return null; // ImageSharp でデコードできる形式ではない
+            var srcFormat = await Image.DetectFormatAsync(imageStream).ConfigureAwait(false);
+            if (srcFormat == null) return null; // ImageSharp でデコードできる形式ではない
 
             imageStream.Position = 0;
-            using var srcImage = await Image.LoadAsync<Rgb24>(imagePath).ConfigureAwait(false);
 
-            // Exif の回転を適用
-            srcImage.Mutate(x => x.AutoOrient());
+            bool isAnimation;
+            IImageFormat thumbnailFormat;
+            byte[] thumbnailBytes;
+            Size srcSize, thumbnailSize;
 
-            // メタデータのクリーニング
-            srcImage.Metadata.ExifProfile = null;
-            srcImage.Metadata.IptcProfile = null;
-            srcImage.Metadata.GetGifMetadata().Comments.Clear();
-
-            var isAnimation = srcImage.Frames.Count > 1;
-            var thumbnailFormat = isAnimation ? imageFormat : JpegFormat.Instance;
-            var thumbnailContentType = thumbnailFormat.DefaultMimeType;
-
-            byte[] thumbnail;
-            var maxLongSide = this._options.CurrentValue.ThumbnailLongSide;
-
-            var needResize = srcImage.Width > maxLongSide || srcImage.Height > maxLongSide;
-            if (needResize)
+            using (var image = await Image.LoadAsync<Rgb24>(imagePath).ConfigureAwait(false))
             {
-                var thumbnailSize = srcImage.Width >= srcImage.Height
-                    ? new Size(maxLongSide, Math.Max(1, (int)Math.Round(srcImage.Height * ((double)maxLongSide / srcImage.Width))))
-                    : new Size(Math.Max(1, (int)Math.Round(srcImage.Width * ((double)maxLongSide / srcImage.Height))), srcImage.Height);
-                using var thumbnailImage = srcImage.Clone(x => x.Resize(new ResizeOptions()
+                // Exif の回転を適用
+                image.Mutate(x => x.AutoOrient());
+                srcSize = image.Size();
+
+                // メタデータのクリーニング
+                image.Metadata.ExifProfile = null;
+                image.Metadata.IptcProfile = null;
+                image.Metadata.GetGifMetadata()?.Comments?.Clear();
+
+                isAnimation = image.Frames.Count > 1;
+                thumbnailFormat = isAnimation ? (IImageFormat)GifFormat.Instance : JpegFormat.Instance;
+
+                // 大きかったらリサイズ
+                var maxLongSide = this._options.CurrentValue.ThumbnailLongSide;
+                if (srcSize.Width > maxLongSide || srcSize.Height > maxLongSide)
                 {
-                    Mode = ResizeMode.Stretch,
-                    Size = thumbnailSize,
-                }));
-                thumbnail = ImageToByteArray(thumbnailImage, thumbnailFormat);
-            }
-            else
-            {
-                thumbnail = ImageToByteArray(srcImage, thumbnailFormat);
+                    thumbnailSize = srcSize.Width >= srcSize.Height
+                        ? new Size(maxLongSide, Math.Max(1, (int)Math.Round(srcSize.Height * ((double)maxLongSide / srcSize.Width))))
+                        : new Size(Math.Max(1, (int)Math.Round(srcSize.Width * ((double)maxLongSide / srcSize.Height))), srcSize.Height);
+                    image.Mutate(x => x.Resize(new ResizeOptions()
+                    {
+                        Mode = ResizeMode.Stretch,
+                        Size = thumbnailSize,
+                    }));
+                }
+                else
+                {
+                    thumbnailSize = srcSize;
+                }
+
+                using (var ms = new MemoryStream())
+                {
+                    image.Save(ms, thumbnailFormat);
+                    thumbnailBytes = ms.ToArray();
+                }
             }
 
             // もし作成したサムネイルのほうが大きくなってしまったら、元の画像を使う
-            if (thumbnail.Length > imageStream.Length)
+            if (thumbnailBytes.Length > imageStream.Length)
             {
                 this._logger.LogInformation("The created thumbnail is bigger than the original. ({Url})", url);
 
@@ -315,50 +393,24 @@ namespace SogigiMind.Services
                 var pos = 0;
                 while (true)
                 {
-                    var count = await imageStream.ReadAsync(thumbnail, pos, thumbnail.Length - pos);
+                    var count = await imageStream.ReadAsync(thumbnailBytes, pos, thumbnailBytes.Length - pos);
                     if (count == 0) break;
                     pos += count;
                 }
 
                 Debug.Assert(pos == imageStream.Length);
-                Array.Resize(ref thumbnail, pos);
+                Array.Resize(ref thumbnailBytes, pos);
 
-                thumbnailContentType = imageFormat.DefaultMimeType;
+                thumbnailFormat = srcFormat;
+                thumbnailSize = srcSize;
             }
 
-            byte[]? trainImage = null;
-
-            try
-            {
-                // アニメーションを削除する
-                while (srcImage.Frames.Count > 1)
-                    srcImage.Frames.RemoveFrame(srcImage.Frames.Count - 1);
-
-                srcImage.Mutate(x => x.Resize(new ResizeOptions()
-                {
-                    Mode = ResizeMode.Crop,
-                    Size = s_trainImageSize,
-                }));
-
-                srcImage.Metadata.GetPngMetadata().InterlaceMethod = PngInterlaceMode.None;
-
-                trainImage = ImageToByteArray(srcImage, PngFormat.Instance);
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Failed to create train image. ({Url})", url);
-            }
-
-            return new InternalThumbnailResult(imageFormat.DefaultMimeType, thumbnailContentType, thumbnail, trainImage);
-
-            byte[] ImageToByteArray(Image<Rgb24> image, IImageFormat format)
-            {
-                using var ms = new MemoryStream();
-                image.Save(ms, format);
-                return ms.ToArray();
-            }
+            return new InternalThumbnailResult(srcFormat.DefaultMimeType, thumbnailFormat.DefaultMimeType, thumbnailSize, isAnimation, thumbnailBytes);
         }
 
+        /// <summary>
+        /// FFmpeg で 1 フレーム目を切り出してサムネイルを作成する。
+        /// </summary>
         private async Task<InternalThumbnailResult?> TryCreateThumbnailForVideoAsync(string videoPath, string url, string contentType)
         {
             var ffmpegPath = this._options.CurrentValue.FFmpegPath;
@@ -409,7 +461,10 @@ namespace SogigiMind.Services
                 var thumbnailResult = await this.TryCreateThumbnailAsync(imagePath, url).ConfigureAwait(false);
                 if (thumbnailResult == null) return null;
 
-                return new InternalThumbnailResult(contentType, thumbnailResult.ThumbnailContentType, thumbnailResult.Thumbnail, thumbnailResult.TrainImage);
+                Debug.Assert(thumbnailResult.SourceContentType == "image/png");
+                thumbnailResult.SourceContentType = contentType;
+
+                return thumbnailResult;
             }
             finally
             {
@@ -432,19 +487,40 @@ namespace SogigiMind.Services
             return string.Concat(bytes.Select(x => x.ToString("x2", CultureInfo.InvariantCulture)));
         }
 
+        private static string ThumbnailPathInGridFs(string contentHash) => ThumbnailPrefix + contentHash;
+
+        private Task InitializeIndexesAsync()
+        {
+            // 複数回実行してしまっても問題ないので、雑に判定
+            if (this._initializeIndexesTask is { } t)
+                return t;
+
+            t = Task.Run(() => FetchStatus.CreateIndexesAsync(this.GetFetchStatusCollection()));
+
+            this._initializeIndexesTask = t;
+            return t;
+        }
+
         private class InternalThumbnailResult
         {
-            public string SourceContentType { get; }
-            public string ThumbnailContentType { get; }
-            public byte[] Thumbnail { get; }
-            public byte[]? TrainImage { get; }
+            public string SourceContentType { get; set; }
+            public string ThumbnailContentType { get; set; }
+            public Size ThumbnailSize { get; set; }
+            public bool IsAnimation { get; set; }
+            public byte[] Thumbnail { get; set; }
 
-            public InternalThumbnailResult(string sourceContentType, string thumbnailContentType, byte[] thumbnail, byte[]? trainImage)
+            public InternalThumbnailResult(
+                string sourceContentType,
+                string thumbnailContentType,
+                Size thumbnailSize,
+                bool isAnimation,
+                byte[] thumbnail)
             {
                 this.SourceContentType = sourceContentType;
                 this.ThumbnailContentType = thumbnailContentType;
+                this.ThumbnailSize = thumbnailSize;
+                this.IsAnimation = isAnimation;
                 this.Thumbnail = thumbnail;
-                this.TrainImage = trainImage;
             }
         }
     }

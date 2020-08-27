@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
+using MongoDB.Driver;
 
 namespace SogigiMind.Models
 {
@@ -14,6 +17,18 @@ namespace SogigiMind.Models
 
         public bool Sensitive { get; set; }
 
+        public DateTimeOffset UpdatedAt { get; set; }
+
 #pragma warning restore CS8618
+
+        public static Task CreateIndexesAsync(IMongoCollection<PersonalSensitivity> collection)
+        {
+            return collection.Indexes
+                .CreateOneAsync(new CreateIndexModel<PersonalSensitivity>(
+                    Builders<PersonalSensitivity>.IndexKeys
+                        .Ascending(x => x.User)
+                        .Ascending(x => x.Url),
+                    new CreateIndexOptions() { Unique = true }));
+        }
     }
 }
