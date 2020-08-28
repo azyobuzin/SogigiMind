@@ -1,6 +1,8 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
 namespace SogigiMind.Models
@@ -8,6 +10,9 @@ namespace SogigiMind.Models
     public class PersonalSensitivity
     {
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。
+
+        [BsonId]
+        public ObjectId Id { get; set; }
 
         [Required]
         public string User { get; set; }
@@ -17,7 +22,7 @@ namespace SogigiMind.Models
 
         public bool Sensitive { get; set; }
 
-        public DateTimeOffset UpdatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
 
 #pragma warning restore CS8618
 

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
 namespace SogigiMind.Models
@@ -9,6 +11,9 @@ namespace SogigiMind.Models
 
     public class FetchStatus
     {
+        [BsonId]
+        public ObjectId Id { get; set; }
+
         /// <summary>
         /// 正規化された URL
         /// </summary>
@@ -23,7 +28,7 @@ namespace SogigiMind.Models
 
         public ThumbnailInfo? ThumbnailInfo { get; set; }
 
-        public DateTimeOffset LastAttempt { get; set; }
+        public DateTime LastAttempt { get; set; }
 
         /// <summary>
         /// 投稿者が設定したセンシティビティ
@@ -39,7 +44,7 @@ namespace SogigiMind.Models
         {
             await collection.Indexes
                 .CreateOneAsync(new CreateIndexModel<FetchStatus>(
-                    Builders<FetchStatus>.IndexKeys.Hashed(x => x.Url),
+                    Builders<FetchStatus>.IndexKeys.Ascending(x => x.Url),
                     new CreateIndexOptions() { Unique = true }))
                 .ConfigureAwait(false);
 

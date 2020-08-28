@@ -11,8 +11,8 @@ using SogigiMind.Services;
 
 namespace SogigiMind.Controllers
 {
-    [ApiController, Authorize(Roles = "App")]
-    public class AppApiController : ControllerBase
+    [Authorize(Roles = "App")]
+    public class AppApiController : Controller
     {
         private readonly ILogger _logger;
 

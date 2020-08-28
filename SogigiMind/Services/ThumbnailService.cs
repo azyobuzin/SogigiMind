@@ -90,7 +90,7 @@ namespace SogigiMind.Services
                     if (canUseToTrain == true)
                         updates.Add(Builders<FetchStatus>.Update.Set(x => x.CanUseToTrain, true));
 
-                    await this.GetFetchStatusCollection()
+                    await this.GetFetchStatusCollection(new MongoCollectionSettings() { WriteConcern = WriteConcern.Unacknowledged })
                         .UpdateOneAsync(x => x.Url == url, Builders<FetchStatus>.Update.Combine(updates))
                         .ConfigureAwait(false);
                 }
@@ -103,8 +103,8 @@ namespace SogigiMind.Services
             return result;
         }
 
-        private IMongoCollection<FetchStatus> GetFetchStatusCollection()
-            => this._mongoDatabase.GetCollection<FetchStatus>(nameof(FetchStatus));
+        private IMongoCollection<FetchStatus> GetFetchStatusCollection(MongoCollectionSettings? settings = null)
+            => this._mongoDatabase.GetCollection<FetchStatus>(nameof(FetchStatus), settings);
 
         private async Task<ThumbnailResult?> GetOrCreateThumbnailCoreAsync(string url)
         {
@@ -132,7 +132,7 @@ namespace SogigiMind.Services
                 }
 
                 // InternalError を起こしていたら、改善する可能性は低いので、 10 分リトライ禁止
-                if (fetchStatus?.LastAttempt.AddMinutes(10) <= DateTimeOffset.Now) return null;
+                if (fetchStatus?.LastAttempt.AddMinutes(10) <= DateTime.UtcNow) return null;
 
                 this._logger.LogInformation("Creating thumbnail for {Url}.", url);
 
@@ -160,6 +160,7 @@ namespace SogigiMind.Services
                     downloadPath = Path.GetTempFileName();
                     using var dstStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
 
+                    // TODO: 動画を相手にするとき、 faststart だったら最初だけ取得すれば良いはずなので、必要な分だけダウンロードしたい
                     await this.CopyStreamAsync(srcStream, dstStream).ConfigureAwait(false);
                 }
                 catch (Exception ex)
@@ -205,7 +206,7 @@ namespace SogigiMind.Services
                         .Set(x => x.Status, internalResult != null ? FetchStatusKind.Success : FetchStatusKind.InternalError)
                         .Set(x => x.ContentType, internalResult?.SourceContentType ?? contentType)
                         .Set(x => x.ContentHash, contentHash)
-                        .Set(x => x.LastAttempt, DateTimeOffset.Now);
+                        .Set(x => x.LastAttempt, DateTime.UtcNow);
 
                     if (internalResult != null)
                     {
@@ -250,7 +251,7 @@ namespace SogigiMind.Services
                             Builders<FetchStatus>.Update
                                 .SetOnInsert(x => x.Url, url)
                                 .Set(x => x.Status, status)
-                                .Set(x => x.LastAttempt, DateTime.Now),
+                                .Set(x => x.LastAttempt, DateTime.UtcNow),
                             new UpdateOptions() { IsUpsert = true }
                         );
                     }
@@ -356,6 +357,9 @@ namespace SogigiMind.Services
                 image.Metadata.IptcProfile = null;
                 image.Metadata.GetGifMetadata()?.Comments?.Clear();
 
+                var jpegMetadata = image.Metadata.GetJpegMetadata();
+                if (jpegMetadata.Quality > 75) jpegMetadata.Quality = 75;
+
                 isAnimation = image.Frames.Count > 1;
                 thumbnailFormat = isAnimation ? (IImageFormat)GifFormat.Instance : JpegFormat.Instance;
 
@@ -366,6 +370,7 @@ namespace SogigiMind.Services
                     thumbnailSize = srcSize.Width >= srcSize.Height
                         ? new Size(maxLongSide, Math.Max(1, (int)Math.Round(srcSize.Height * ((double)maxLongSide / srcSize.Width))))
                         : new Size(Math.Max(1, (int)Math.Round(srcSize.Width * ((double)maxLongSide / srcSize.Height))), srcSize.Height);
+
                     image.Mutate(x => x.Resize(new ResizeOptions()
                     {
                         Mode = ResizeMode.Stretch,
@@ -376,6 +381,9 @@ namespace SogigiMind.Services
                 {
                     thumbnailSize = srcSize;
                 }
+
+                Debug.Assert(thumbnailSize.Width <= maxLongSide && thumbnailSize.Height <= maxLongSide);
+                Debug.Assert(image.Size() == thumbnailSize);
 
                 using (var ms = new MemoryStream())
                 {
@@ -495,7 +503,18 @@ namespace SogigiMind.Services
             if (this._initializeIndexesTask is { } t)
                 return t;
 
-            t = Task.Run(() => FetchStatus.CreateIndexesAsync(this.GetFetchStatusCollection()));
+            t = Task.Run(async () =>
+            {
+                try
+                {
+                    await FetchStatus.CreateIndexesAsync(this.GetFetchStatusCollection()).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Failed to initialize indexes.");
+                    this._initializeIndexesTask = null; // Retry next time
+                }
+            });
 
             this._initializeIndexesTask = t;
             return t;

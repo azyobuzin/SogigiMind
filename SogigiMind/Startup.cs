@@ -27,7 +27,7 @@ namespace SogigiMind
             this.ConfigureOptions(services);
 
             services.AddControllers();
-            services.AddAuthentication()
+            services.AddAuthentication(TokenAuthenticationHandler.DefaultAuthenticationScheme)
                 .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.DefaultAuthenticationScheme, null);
 
             services.AddSingleton<IMongoDatabase>(serviceProvider =>

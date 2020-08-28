@@ -2,7 +2,7 @@
 
 namespace SogigiMind.Infrastructures
 {
-    public static class TaskExtensions
+    internal static class TaskExtensions
     {
         /// <summary>
         /// await されなくても <see cref="TaskScheduler.UnobservedTaskException"/> が発生しないようにします。
