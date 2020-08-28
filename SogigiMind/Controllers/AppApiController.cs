@@ -1,17 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Threading;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using SogigiMind.Infrastructures;
 using SogigiMind.Services;
 
 namespace SogigiMind.Controllers
 {
     [Authorize(Roles = "App")]
+    [SuppressMessage("Style", "VSTHRD200:非同期メソッドに \"Async\" サフィックスを使用する", Justification = "Controller の Action")]
     public class AppApiController : Controller
     {
         private readonly ILogger _logger;
@@ -29,24 +32,12 @@ namespace SogigiMind.Controllers
         {
             if (request?.Urls == null) return;
 
-            Task.Run(() =>
+            _ = Task.Run(() =>
             {
                 foreach (var url in request.Urls)
                 {
                     thumbnailService.GetOrCreateThumbnailAsync(url, request.Sensitive, request.CanUseToTrain)
-                        .ContinueWith(
-                            (t, state) =>
-                            {
-                                if (t.Exception is { } ex)
-                                {
-                                    this._logger.LogError(ex, "Failed to prefetch {Url}.", state);
-                                }
-                            },
-                            url,
-                            CancellationToken.None,
-                            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-                            TaskScheduler.Default
-                        );
+                        .Catch(ex => this._logger.LogError(ex, "Failed to prefetch {Url}.", url));
                 }
             });
         }
@@ -56,11 +47,11 @@ namespace SogigiMind.Controllers
         /// エラーが発生した場合は <paramref name="url"/> へリダイレクトします。
         /// </summary>
         [HttpGet, HttpHead, HttpPost]
-        public async Task<IActionResult> Thumbnail(string url, [FromServices] ThumbnailService thumbnailService)
+        public async Task<IActionResult> Thumbnail([Required] string url, [FromServices] ThumbnailService thumbnailService)
         {
             try
             {
-                var result = await thumbnailService.GetOrCreateThumbnailAsync(url, null, null);
+                var result = await thumbnailService.GetOrCreateThumbnailAsync(url, null, null).ConfigureAwait(false);
 
                 if (result != null)
                     return this.File(result.Content, result.ContentType);
@@ -77,9 +68,9 @@ namespace SogigiMind.Controllers
         /// ユーザーにとってセンシティブな画像かを記録します。
         /// </summary>
         [HttpPost]
-        public void RecordPersonalSensitivity([FromBody] RecordPersonalSensitivityRequest request)
+        public Task RecordPersonalSensitivity([FromBody] RecordPersonalSensitivityRequest request, [FromServices] PersonalSensitivityService service)
         {
-            // TODO
+            return service.RecordPersonalSensitivityAsync(request.User, request.Url, request.Sensitive);
         }
 
         /// <summary>
@@ -87,9 +78,16 @@ namespace SogigiMind.Controllers
         /// </summary>
         /// <returns>戻り値は <see cref="GetPersonalSensitivityRequest.Items"/> と同じ要素数、順番です。</returns>
         [HttpPost]
-        public ActionResult<IEnumerable<GetPersonalSensitivityResponseItem>> GetPersonalSensitivity([FromBody] GetPersonalSensitivityRequest request)
+        public async Task<IEnumerable<PersonalSensitivityEstimationResult>> GetPersonalSensitivity(
+            [FromBody] GetPersonalSensitivityRequest request,
+            [FromServices] PersonalSensitivityService service)
         {
-            throw new NotImplementedException();
+            if (request?.Items == null) return Enumerable.Empty<PersonalSensitivityEstimationResult>();
+
+            return await service.EstimatePersonalSensitivityAsync(
+                request.User,
+                request.Items.Select(x => new PersonalSensitivityEstimationInput(x.Url, x.SensitiveByDefault, x.CanUseToTrain))
+            ).ConfigureAwait(false);
         }
 
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。
@@ -145,21 +143,6 @@ namespace SogigiMind.Controllers
             /// </summary>
             [Required]
             public bool? CanUseToTrain { get; set; }
-        }
-
-        public class GetPersonalSensitivityResponseItem
-        {
-            public string Url { get; set; }
-
-            /// <summary>
-            /// 機械学習によって推論されたセンシティビティ 0～1。ただし推論に失敗した場合は <see langword="null"/>。
-            /// </summary>
-            public float? Sensitivity { get; set; }
-
-            /// <summary>
-            /// ユーザーが設定したセンシティビティ。ユーザーが設定していない場合は <see langword="null"/>。
-            /// </summary>
-            public bool? PersonalSensitivity { get; set; }
         }
     }
 }

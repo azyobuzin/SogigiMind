@@ -1,0 +1,16 @@
+﻿[*.cs]
+
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+dotnet_style_qualification_for_field = true:suggestion
+dotnet_style_qualification_for_property = true:suggestion
+dotnet_style_qualification_for_method = true:suggestion
+dotnet_style_qualification_for_event = true:suggestion
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# VSTHRD111: ConfigureAwait(bool) を使用する
+dotnet_diagnostic.VSTHRD111.severity = warning

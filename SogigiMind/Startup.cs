@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using SogigiMind.Infrastructures;
 using SogigiMind.Options;
+using SogigiMind.Repositories;
 using SogigiMind.Services;
 
 namespace SogigiMind
@@ -24,8 +25,6 @@ namespace SogigiMind
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            this.ConfigureOptions(services);
-
             services.AddControllers();
             services.AddAuthentication(TokenAuthenticationHandler.DefaultAuthenticationScheme)
                 .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.DefaultAuthenticationScheme, null);
@@ -37,7 +36,9 @@ namespace SogigiMind
                 return client.GetDatabase(databaseOptions.Database);
             });
 
-            services.AddSingleton<ThumbnailService>();
+            this.ConfigureOptions(services);
+            this.ConfigureBusinessServices(services);
+            this.ConfigureRepositories(services);
         }
 
         private void ConfigureOptions(IServiceCollection services)
@@ -54,6 +55,19 @@ namespace SogigiMind
 
             if (this.Configuration.GetSection("Tokens") is { } tokensSection)
                 services.Configure<TokenOptions>(tokensSection);
+        }
+
+        private void ConfigureBusinessServices(IServiceCollection services)
+        {
+            services.AddSingleton<PersonalSensitivityService>();
+            services.AddSingleton<ThumbnailService>();
+        }
+
+        private void ConfigureRepositories(IServiceCollection services)
+        {
+            services.AddSingleton<IFetchStatusRepository, FetchStatusRepository>();
+            services.AddSingleton<IPersonalSensitivityRepository, PersonalSensitivityRepository>();
+            services.AddSingleton<IThumbnailRepository, ThumbnailRepository>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

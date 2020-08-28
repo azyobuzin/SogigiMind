@@ -20,6 +20,7 @@ namespace SogigiMind.Models
         [Required]
         public string Url { get; set; }
 
+        [BsonRepresentation(BsonType.String)]
         public FetchStatusKind Status { get; set; }
 
         public string? ContentType { get; set; }
@@ -28,7 +29,7 @@ namespace SogigiMind.Models
 
         public ThumbnailInfo? ThumbnailInfo { get; set; }
 
-        public DateTime LastAttempt { get; set; }
+        public DateTime? LastAttempt { get; set; }
 
         /// <summary>
         /// 投稿者が設定したセンシティビティ
@@ -57,6 +58,8 @@ namespace SogigiMind.Models
 
     public enum FetchStatusKind
     {
+        NotYet,
+
         Success,
 
         /// <summary>

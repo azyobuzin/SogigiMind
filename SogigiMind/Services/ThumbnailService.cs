@@ -15,9 +15,6 @@ using CliWrap.Buffered;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson;
-using MongoDB.Driver;
-using MongoDB.Driver.GridFS;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Gif;
@@ -25,26 +22,32 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SogigiMind.Infrastructures;
+using SogigiMind.Logics;
 using SogigiMind.Models;
 using SogigiMind.Options;
+using SogigiMind.Repositories;
 
 namespace SogigiMind.Services
 {
     public class ThumbnailService
     {
-        private readonly IMongoDatabase _mongoDatabase;
+        private readonly IFetchStatusRepository _fetchStatusRepository;
+        private readonly IThumbnailRepository _thumbnailRepository;
         private readonly IOptionsMonitor<ThumbnailOptions> _options;
         private readonly ILogger _logger;
         private readonly Dictionary<string, Task<ThumbnailResult?>> _tasks = new Dictionary<string, Task<ThumbnailResult?>>();
         private readonly HttpClient _httpClient;
-        private Task? _initializeIndexesTask;
 
-        private const string ThumbnailPrefix = "thumbnail/";
         private static readonly TimeSpan s_ffmpegTimeout = TimeSpan.FromSeconds(10);
 
-        public ThumbnailService(IMongoDatabase mongoDatabase, IOptionsMonitor<ThumbnailOptions> options, ILogger<ThumbnailService>? logger)
+        public ThumbnailService(
+            IFetchStatusRepository fetchStatusRepository,
+            IThumbnailRepository thumbnailRepository,
+            IOptionsMonitor<ThumbnailOptions> options,
+            ILogger<ThumbnailService>? logger)
         {
-            this._mongoDatabase = mongoDatabase ?? throw new ArgumentNullException(nameof(mongoDatabase));
+            this._fetchStatusRepository = fetchStatusRepository ?? throw new ArgumentNullException(nameof(fetchStatusRepository));
+            this._thumbnailRepository = thumbnailRepository ?? throw new ArgumentNullException(nameof(thumbnailRepository));
             this._options = options ?? throw new ArgumentNullException(nameof(options));
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
 
@@ -63,7 +66,7 @@ namespace SogigiMind.Services
 
         public async Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
         {
-            url = new Uri(url).AbsoluteUri; // Normalize
+            url = UrlNormalizer.NormalizeUrl(url);
 
             // 同じ URL に対して、このサーバーですでに処理を開始しているなら、それを待機する
             Task<ThumbnailResult?>? task;
@@ -78,33 +81,19 @@ namespace SogigiMind.Services
 
             var result = await task.ConfigureAwait(false);
 
-            if (sensitive != null || canUseToTrain == true)
+            try
             {
-                try
-                {
-                    var updates = new List<UpdateDefinition<FetchStatus>>(2);
-
-                    if (sensitive != null)
-                        updates.Add(Builders<FetchStatus>.Update.Set(x => x.Sensitive, sensitive.Value));
-
-                    if (canUseToTrain == true)
-                        updates.Add(Builders<FetchStatus>.Update.Set(x => x.CanUseToTrain, true));
-
-                    await this.GetFetchStatusCollection(new MongoCollectionSettings() { WriteConcern = WriteConcern.Unacknowledged })
-                        .UpdateOneAsync(x => x.Url == url, Builders<FetchStatus>.Update.Combine(updates))
-                        .ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    this._logger.LogError(ex, "Failed to write Sensitive and CanUseToTrain. ({Url})", url);
-                }
+                await this._fetchStatusRepository
+                    .UpdateLeaningOptionsAsync(url, sensitive, canUseToTrain)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex, "Failed to UpdateLearningOptions. ({Url})", url);
             }
 
             return result;
         }
-
-        private IMongoCollection<FetchStatus> GetFetchStatusCollection(MongoCollectionSettings? settings = null)
-            => this._mongoDatabase.GetCollection<FetchStatus>(nameof(FetchStatus), settings);
 
         private async Task<ThumbnailResult?> GetOrCreateThumbnailCoreAsync(string url)
         {
@@ -112,27 +101,19 @@ namespace SogigiMind.Services
 
             try
             {
-                await this.InitializeIndexesAsync().ConfigureAwait(false);
-
-                var collection = this.GetFetchStatusCollection();
-                var gridFs = new GridFSBucket(this._mongoDatabase);
                 string contentType;
 
                 // すでにあるかを確認
-                var fetchStatus = await collection.Find(x => x.Url == url).FirstOrDefaultAsync().ConfigureAwait(false);
+                var fetchStatus = await this._fetchStatusRepository.FindByUrlAsync(url).ConfigureAwait(false);
 
                 if (fetchStatus?.ContentHash is { } contentHash && fetchStatus.ThumbnailInfo is { ContentType: var thumbnailContentType })
                 {
-                    try
-                    {
-                        var bytes = await gridFs.DownloadAsBytesByNameAsync(ThumbnailPathInGridFs(contentHash)).ConfigureAwait(false);
-                        return new ThumbnailResult(thumbnailContentType, bytes);
-                    }
-                    catch (GridFSFileNotFoundException) { }
+                    var bytes = await this._thumbnailRepository.DownloadAsBytesAsync(contentHash).ConfigureAwait(false);
+                    if (bytes != null) return new ThumbnailResult(thumbnailContentType, bytes);
                 }
 
                 // InternalError を起こしていたら、改善する可能性は低いので、 10 分リトライ禁止
-                if (fetchStatus?.LastAttempt.AddMinutes(10) <= DateTime.UtcNow) return null;
+                if (fetchStatus?.LastAttempt?.AddMinutes(10) <= DateTime.UtcNow) return null;
 
                 this._logger.LogInformation("Creating thumbnail for {Url}.", url);
 
@@ -175,7 +156,7 @@ namespace SogigiMind.Services
 
                 try
                 {
-                    var hashTask = Task.Run(() => ComputeFileHashAsync(downloadPath)).TouchException();
+                    var hashTask = Task.Run(() => ComputeFileHash(downloadPath)).TouchException();
 
                     // 画像として処理できるか試す
                     internalResult = await this.TryCreateThumbnailAsync(downloadPath, url).ConfigureAwait(false);
@@ -201,39 +182,30 @@ namespace SogigiMind.Services
 
                 try
                 {
-                    var operation = Builders<FetchStatus>.Update
-                        .SetOnInsert(x => x.Url, url)
-                        .Set(x => x.Status, internalResult != null ? FetchStatusKind.Success : FetchStatusKind.InternalError)
-                        .Set(x => x.ContentType, internalResult?.SourceContentType ?? contentType)
-                        .Set(x => x.ContentHash, contentHash)
-                        .Set(x => x.LastAttempt, DateTime.UtcNow);
+                    ThumbnailInfo? thumbnailInfo = null;
 
                     if (internalResult != null)
                     {
-                        await gridFs.UploadFromBytesAsync(
-                            ThumbnailPathInGridFs(contentHash),
-                            internalResult.Thumbnail,
-                            new GridFSUploadOptions()
-                            {
-                                Metadata = new BsonDocument()
-                                {
-                                    { "url", url },
-                                    {"contentType", internalResult.ThumbnailContentType },
-                                }
-                            }
-                        ).ConfigureAwait(false);
+                        await this._thumbnailRepository
+                            .UploadAsync(contentHash, internalResult.Thumbnail, url, internalResult.ThumbnailContentType)
+                            .ConfigureAwait(false);
 
-                        // GridFS にアップロードできたら ThumbnailInfo を埋める
-                        operation = operation.Set(x => x.ThumbnailInfo, new ThumbnailInfo()
+                        thumbnailInfo = new ThumbnailInfo()
                         {
                             ContentType = internalResult.ThumbnailContentType,
                             Width = internalResult.ThumbnailSize.Width,
                             Height = internalResult.ThumbnailSize.Height,
                             IsAnimation = internalResult.IsAnimation,
-                        });
+                        };
                     }
 
-                    await collection.UpdateOneAsync(x => x.Url == url, operation, new UpdateOptions() { IsUpsert = true }).ConfigureAwait(false);
+                    await this._fetchStatusRepository.UpdateThumbnailInfoAsync(
+                        url,
+                        internalResult != null ? FetchStatusKind.Success : FetchStatusKind.InternalError,
+                        internalResult?.SourceContentType ?? contentType,
+                        contentHash,
+                        thumbnailInfo,
+                        DateTimeOffset.Now).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -246,14 +218,9 @@ namespace SogigiMind.Services
                 {
                     try
                     {
-                        await collection.UpdateOneAsync(
-                            x => x.Url == url,
-                            Builders<FetchStatus>.Update
-                                .SetOnInsert(x => x.Url, url)
-                                .Set(x => x.Status, status)
-                                .Set(x => x.LastAttempt, DateTime.UtcNow),
-                            new UpdateOptions() { IsUpsert = true }
-                        );
+                        await this._fetchStatusRepository
+                            .UpdateStatusAsync(url, status, DateTimeOffset.Now)
+                            .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
@@ -319,13 +286,14 @@ namespace SogigiMind.Services
                         var result = await writer.FlushAsync().ConfigureAwait(false);
                         if (result.IsCanceled || result.IsCompleted) return;
                     }
-
-                    writer.Complete();
                 }
                 catch (Exception ex)
                 {
-                    writer.Complete(ex);
+                    await writer.CompleteAsync(ex).ConfigureAwait(false);
+                    return;
                 }
+
+                await writer.CompleteAsync().ConfigureAwait(false);
             }
         }
 
@@ -401,7 +369,7 @@ namespace SogigiMind.Services
                 var pos = 0;
                 while (true)
                 {
-                    var count = await imageStream.ReadAsync(thumbnailBytes, pos, thumbnailBytes.Length - pos);
+                    var count = await imageStream.ReadAsync(thumbnailBytes, pos, thumbnailBytes.Length - pos).ConfigureAwait(false);
                     if (count == 0) break;
                     pos += count;
                 }
@@ -487,37 +455,12 @@ namespace SogigiMind.Services
             }
         }
 
-        private static string ComputeFileHashAsync(string path)
+        private static string ComputeFileHash(string path)
         {
             using var hash = SHA256.Create();
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var bytes = hash.ComputeHash(stream);
             return string.Concat(bytes.Select(x => x.ToString("x2", CultureInfo.InvariantCulture)));
-        }
-
-        private static string ThumbnailPathInGridFs(string contentHash) => ThumbnailPrefix + contentHash;
-
-        private Task InitializeIndexesAsync()
-        {
-            // 複数回実行してしまっても問題ないので、雑に判定
-            if (this._initializeIndexesTask is { } t)
-                return t;
-
-            t = Task.Run(async () =>
-            {
-                try
-                {
-                    await FetchStatus.CreateIndexesAsync(this.GetFetchStatusCollection()).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    this._logger.LogError(ex, "Failed to initialize indexes.");
-                    this._initializeIndexesTask = null; // Retry next time
-                }
-            });
-
-            this._initializeIndexesTask = t;
-            return t;
         }
 
         private class InternalThumbnailResult
