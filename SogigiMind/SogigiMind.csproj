@@ -8,8 +8,8 @@
   <ItemGroup>
     <PackageReference Include="CliWrap" Version="3.1.0" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="16.7.54" PrivateAssets="All" />
-    <PackageReference Include="MongoDB.Driver" Version="2.11.1" />
-    <PackageReference Include="MongoDB.Driver.GridFS" Version="2.11.1" />
+    <PackageReference Include="MongoDB.Driver" Version="2.10.4" />
+    <PackageReference Include="MongoDB.Driver.GridFS" Version="2.10.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.1" />
   </ItemGroup>
 
