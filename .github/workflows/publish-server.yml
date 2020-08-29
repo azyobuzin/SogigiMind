@@ -1,0 +1,21 @@
+name: Publish Server
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  push_to_registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker/build-push-action@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: azyobuzin/sogigimind/server
+          tag_with_ref: true
+          dockerfile: SogigiMind/Dockerfile
+          always_pull: true
+          add_git_labels: true
