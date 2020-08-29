@@ -28,16 +28,16 @@ namespace SogigiMind.Controllers
         /// 指定された URL のサムネイルの作成を予約します。
         /// </summary>
         [HttpPost]
-        public void Prefetch([FromBody] PrefetchRequest request, [FromServices] ThumbnailService thumbnailService)
+        public void Prefetch([FromBody] IEnumerable<RequestItem>? request, [FromServices] ThumbnailService thumbnailService)
         {
-            if (request?.Urls == null) return;
+            if (request == null) return;
 
             _ = Task.Run(() =>
             {
-                foreach (var url in request.Urls)
+                foreach (var request in request)
                 {
-                    thumbnailService.GetOrCreateThumbnailAsync(url, request.Sensitive, request.CanUseToTrain)
-                        .Catch(ex => this._logger.LogError(ex, "Failed to prefetch {Url}.", url));
+                    thumbnailService.GetOrCreateThumbnailAsync(request.Url, request.SensitiveByDefault, request.CanUseToTrain)
+                        .Catch(ex => this._logger.LogError(ex, "Failed to prefetch {Url}.", request.Url));
                 }
             });
         }
@@ -92,21 +92,6 @@ namespace SogigiMind.Controllers
 
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。
 
-        public class PrefetchRequest
-        {
-            public IReadOnlyList<string>? Urls { get; set; }
-
-            /// <summary>
-            /// 投稿者が設定したセンシティビティ
-            /// </summary>
-            public bool? Sensitive { get; set; }
-
-            /// <summary>
-            /// 学習データとして利用できるデータか
-            /// </summary>
-            public bool? CanUseToTrain { get; set; }
-        }
-
         public class RecordPersonalSensitivityRequest
         {
             [Required]
@@ -124,10 +109,10 @@ namespace SogigiMind.Controllers
             [Required]
             public string User { get; set; }
 
-            public IReadOnlyList<GetPersonalSensitivityRequestItem>? Items { get; set; }
+            public IReadOnlyList<RequestItem>? Items { get; set; }
         }
 
-        public class GetPersonalSensitivityRequestItem
+        public class RequestItem
         {
             [Required]
             public string Url { get; set; }
@@ -135,13 +120,11 @@ namespace SogigiMind.Controllers
             /// <summary>
             /// 投稿者が設定したセンシティビティ
             /// </summary>
-            [Required]
-            public bool SensitiveByDefault { get; set; }
+            public bool? SensitiveByDefault { get; set; }
 
             /// <summary>
             /// 学習データとして利用できるデータか
             /// </summary>
-            [Required]
             public bool? CanUseToTrain { get; set; }
         }
     }

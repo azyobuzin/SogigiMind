@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -51,11 +52,20 @@ namespace SogigiMind.Services
             this._options = options ?? throw new ArgumentNullException(nameof(options));
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
 
-            this._httpClient = new HttpClient(new HttpClientHandler() { AllowAutoRedirect = true })
+            var handler = new HttpClientHandler() { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 };
+            var proxy = options.CurrentValue.Proxy;
+            if (!string.IsNullOrEmpty(proxy)) handler.Proxy = new WebProxy(proxy);
+
+            this._httpClient = new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromSeconds(600),
                 DefaultRequestHeaders =
                 {
+                    Accept =
+                    {
+                        new MediaTypeWithQualityHeaderValue("image/*"),
+                        new MediaTypeWithQualityHeaderValue("video/*"),
+                    },
                     UserAgent =
                     {
                         new ProductInfoHeaderValue("SogigiMind", typeof(ThumbnailService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0")
@@ -66,6 +76,8 @@ namespace SogigiMind.Services
 
         public async Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
         {
+            if (string.IsNullOrEmpty(url)) throw new ArgumentNullException(nameof(url));
+
             url = UrlNormalizer.NormalizeUrl(url);
 
             // 同じ URL に対して、このサーバーですでに処理を開始しているなら、それを待機する

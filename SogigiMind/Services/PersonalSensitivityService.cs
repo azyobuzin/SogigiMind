@@ -28,6 +28,9 @@ namespace SogigiMind.Services
 
         public Task RecordPersonalSensitivityAsync(string user, string url, bool sensitive)
         {
+            if (string.IsNullOrEmpty(user)) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrEmpty(url)) throw new ArgumentNullException(nameof(url));
+
             url = UrlNormalizer.NormalizeUrl(url);
             return this._personalSensitivityRepository.UpdateSensitivityAsync(user, url, sensitive, DateTimeOffset.Now);
         }
@@ -35,6 +38,9 @@ namespace SogigiMind.Services
         public async Task<IReadOnlyList<PersonalSensitivityEstimationResult>> EstimatePersonalSensitivityAsync(
             string user, IEnumerable<PersonalSensitivityEstimationInput> inputs)
         {
+            if (string.IsNullOrEmpty(user)) throw new ArgumentNullException(nameof(user));
+            if (inputs == null) throw new ArgumentNullException(nameof(inputs));
+
             var urls = new List<string>();
 
             foreach (var input in inputs)

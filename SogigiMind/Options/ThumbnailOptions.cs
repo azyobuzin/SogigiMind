@@ -5,6 +5,9 @@ namespace SogigiMind.Options
 {
     public class ThumbnailOptions
     {
+        /// <summary>指定するとそのプロキシを、指定しないとシステムのプロキシを使用します。</summary>
+        public string? Proxy { get; set; }
+
         /// <summary>このサイズを超えるデータはダウンロードしない</summary>
         [Range(1, int.MaxValue)]
         public int DownloadSizeLimit { get; set; } = 50 * 1024 * 1024;
