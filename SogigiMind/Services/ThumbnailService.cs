@@ -20,6 +20,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SogigiMind.Infrastructures;
@@ -341,7 +342,12 @@ namespace SogigiMind.Services
                 if (jpegMetadata.Quality > 75) jpegMetadata.Quality = 75;
 
                 isAnimation = image.Frames.Count > 1;
-                thumbnailFormat = isAnimation ? (IImageFormat)GifFormat.Instance : JpegFormat.Instance;
+
+                // 小さい画像は JPEG にしても意味がないし、見ていてつらいので特別扱い
+                var tooSmall = srcSize.Width < 300 || srcSize.Height < 300;
+                thumbnailFormat = isAnimation ? GifFormat.Instance
+                    : tooSmall && srcFormat is PngFormat ? (IImageFormat)PngFormat.Instance
+                    : JpegFormat.Instance;
 
                 // 大きかったらリサイズ
                 var maxLongSide = this._options.CurrentValue.ThumbnailLongSide;
