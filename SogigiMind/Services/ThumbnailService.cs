@@ -350,6 +350,7 @@ namespace SogigiMind.Services
                     thumbnailSize = srcSize.Width >= srcSize.Height
                         ? new Size(maxLongSide, Math.Max(1, (int)Math.Round(srcSize.Height * ((double)maxLongSide / srcSize.Width))))
                         : new Size(Math.Max(1, (int)Math.Round(srcSize.Width * ((double)maxLongSide / srcSize.Height))), srcSize.Height);
+                    Debug.Assert(thumbnailSize.Width <= maxLongSide && thumbnailSize.Height <= maxLongSide);
 
                     image.Mutate(x => x.Resize(new ResizeOptions()
                     {
@@ -362,7 +363,6 @@ namespace SogigiMind.Services
                     thumbnailSize = srcSize;
                 }
 
-                Debug.Assert(thumbnailSize.Width <= maxLongSide && thumbnailSize.Height <= maxLongSide);
                 Debug.Assert(image.Size() == thumbnailSize);
 
                 using (var ms = new MemoryStream())
