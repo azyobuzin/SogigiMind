@@ -16,6 +16,6 @@ jobs:
           registry: docker.pkg.github.com
           repository: azyobuzin/sogigimind/server
           tag_with_ref: true
-          dockerfile: SogigiMind/Dockerfile
+          dockerfile: docker/server/Dockerfile
           always_pull: true
           add_git_labels: true
