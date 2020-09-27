@@ -2,7 +2,9 @@ version: '2'
 
 services:
   dev:
-    build: dev
+    build:
+      context: '..'
+      dockerfile: 'SogigiMind/Dockerfile'
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:5000
       ASPNETCORE_ENVIRONMENT: Development

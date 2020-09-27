@@ -1,3 +1,6 @@
+# This file is used for development.
+# See .devcontainer directory.
+
 FROM mcr.microsoft.com/dotnet/core/sdk:3.1-focal
 
 ARG USE_MIRROR=1
@@ -8,5 +11,3 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg postgres
 
 RUN echo 'export PATH="$PATH:/root/.dotnet/tools"' >> /root/.bashrc
 RUN dotnet tool install --global dotnet-ef --version 3.1.8
-
-CMD [ "/bin/sh", "-c", "while sleep 1000; do :; done" ]

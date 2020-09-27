@@ -4,6 +4,8 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <VersionPrefix>0.2.0</VersionPrefix>
     <Nullable>enable</Nullable>
+    <DockerComposeProjectPath>..\.devcontainer\docker-compose.dcproj</DockerComposeProjectPath>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
   <ItemGroup>
