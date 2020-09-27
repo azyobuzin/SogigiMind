@@ -1,13 +1,11 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-using SogigiMind.Data;
 using SogigiMind.Infrastructures;
 using SogigiMind.Options;
 using SogigiMind.Repositories;
@@ -37,11 +35,6 @@ namespace SogigiMind
                 var client = new MongoClient(databaseOptions.ConnectionString);
                 return client.GetDatabase(databaseOptions.Database);
             });
-
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(this.Configuration.GetConnectionString("Default"))
-                    .UseSnakeCaseNamingConvention()
-            );
 
             this.ConfigureOptions(services);
             this.ConfigureBusinessServices(services);
