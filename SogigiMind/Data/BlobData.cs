@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SogigiMind.Data
 {
-    public class Blob
+    public class BlobData
     {
         public long Id { get; set; }
 
