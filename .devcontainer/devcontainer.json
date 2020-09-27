@@ -1,0 +1,14 @@
+{
+  "dockerComposeFile": [
+    "docker-compose.yml",
+    "docker-compose.vscode.yml"
+  ],
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "extensions": [
+    "ms-dotnettools.csharp"
+  ]
+}

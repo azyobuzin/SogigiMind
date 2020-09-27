@@ -1,0 +1,23 @@
+version: '2'
+
+services:
+  dev:
+    build: dev
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:5000
+      ASPNETCORE_ENVIRONMENT: Development
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    ports:
+      - '5000:5000'
+    depends_on:
+      - db
+
+  db:
+    image: postgres:11
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./db/data:/var/lib/postgresql/data
+      - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
