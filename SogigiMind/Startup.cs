@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -5,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using SogigiMind.Infrastructures;
 using SogigiMind.Options;
@@ -34,6 +37,12 @@ namespace SogigiMind
                 var databaseOptions = serviceProvider.GetRequiredService<IOptionsMonitor<DatabaseOptions>>().CurrentValue;
                 var client = new MongoClient(databaseOptions.ConnectionString);
                 return client.GetDatabase(databaseOptions.Database);
+            });
+
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new OpenApiInfo() { Title = "SogigiMind", Version = "0.2.0" });
+                c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "SogigiMind.xml"));
             });
 
             this.ConfigureOptions(services);
@@ -77,6 +86,9 @@ namespace SogigiMind
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SogigiMind"));
 
             app.UseRouting();
 
