@@ -31,7 +31,7 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <summary>
         /// 指定された URL のサムネイルの作成を予約します。
         /// </summary>
-        [HttpPost("prefetch"), Authorize(Roles = Roles.AppServer)]
+        [HttpPost("prefetch"), Authorize(Roles = SogigiMindRoles.AppServer)]
         public IActionResult Prefetch([FromBody] IEnumerable<PrefetchRequestItem>? request)
         {
             throw new NotImplementedException();

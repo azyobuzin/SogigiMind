@@ -1,6 +1,8 @@
-﻿namespace SogigiMind.Authentication
+﻿using System;
+
+namespace SogigiMind.Authentication
 {
-    public static class Roles
+    public static class SogigiMindRoles
     {
         /// <summary>
         /// Mastodon や Pleroma のようなアプリのサーバー
@@ -20,6 +22,7 @@
         /// <summary>
         /// アプリを利用するユーザー
         /// </summary>
+        [Obsolete]
         public const string EndUser = "EndUser";
     }
 }

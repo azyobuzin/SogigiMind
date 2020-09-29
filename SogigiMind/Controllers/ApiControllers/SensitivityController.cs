@@ -7,7 +7,7 @@ using SogigiMind.Authentication;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
-    [ApiController, Route("api/sensitivity"), Authorize(Roles = Roles.EndUser)]
+    [ApiController, Route("api/sensitivity"), Authorize(Policy = EndUserAuthorizationPolicy.PolicyName)]
     public class SensitivityController : ControllerBase
     {
         /// <summary>

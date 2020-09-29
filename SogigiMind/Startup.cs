@@ -9,7 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
-using SogigiMind.Infrastructures;
+using SogigiMind.Authentication;
 using SogigiMind.Options;
 using SogigiMind.Repositories;
 using SogigiMind.Services;
@@ -29,8 +29,10 @@ namespace SogigiMind
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddAuthentication(TokenAuthenticationHandler.DefaultAuthenticationScheme)
-                .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.DefaultAuthenticationScheme, null);
+            services.AddAuthentication(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme)
+                .AddScheme<AuthenticationSchemeOptions, AccessTokenAuthenticationHandler>(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme, null);
+
+            services.AddAuthorization(options => options.AddEndUserPolicy());
 
             services.AddSingleton<IMongoDatabase>(serviceProvider =>
             {
@@ -68,6 +70,8 @@ namespace SogigiMind
 
         private void ConfigureBusinessServices(IServiceCollection services)
         {
+            services.AddTransient<AccessTokenRepository>();
+            services.AddTransient<DashboardLoginService>();
             services.AddSingleton<PersonalSensitivityService>();
             services.AddSingleton<ThumbnailService>();
         }

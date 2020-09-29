@@ -7,7 +7,7 @@ using SogigiMind.Authentication;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
-    [ApiController, Route("api/admin"), Authorize(Roles = Roles.Dashboard)]
+    [ApiController, Route("api/admin"), Authorize(Roles = SogigiMindRoles.Dashboard)]
     public class AdministrationController
     {
         /// <summary>

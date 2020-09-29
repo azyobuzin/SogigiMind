@@ -11,6 +11,10 @@ namespace SogigiMind.Data
         {
         }
 
+        public DbSet<AccessTokenData> AccessTokens { get; set; }
+
+        public DbSet<AccessTokenClaimData> AccessTokenClaims { get; set; }
+
         public DbSet<BlobData> Blobs { get; set; }
 
         public DbSet<EndUserData> EndUsers { get; set; }
@@ -27,6 +31,12 @@ namespace SogigiMind.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<AccessTokenData>().HasIndex(x => x.TokenHash).IsUnique();
+
+            modelBuilder.Entity<AccessTokenClaimData>().HasIndex(
+                nameof(AccessTokenClaimData.AccessTokenId),
+                nameof(AccessTokenClaimData.ClaimType));
+
             modelBuilder.Entity<EstimationLogData>().HasIndex(x => x.InsertedAt);
 
             modelBuilder.Entity<FetchAttemptData>().HasIndex(x => x.RemoteImageId);
