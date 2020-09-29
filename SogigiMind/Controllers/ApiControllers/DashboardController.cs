@@ -7,6 +7,7 @@ namespace SogigiMind.Controllers.ApiControllers
     [ApiController, Route("api/dashboard")]
     public class DashboardController
     {
+        /// <response code="403">password is incorrect.</response>
         [HttpPost("login")]
         public ActionResult<LoginResponse> Login([FromBody] LoginRequest request)
         {

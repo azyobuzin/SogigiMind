@@ -15,6 +15,7 @@
     <PackageReference Include="EFCore.NamingConventions" Version="1.1.0" />
     <PackageReference Include="JsonStreamLogger" Version="0.3.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.8" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="6.7.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="16.7.56" PrivateAssets="All" />
     <PackageReference Include="MongoDB.Driver" Version="2.10.4" />

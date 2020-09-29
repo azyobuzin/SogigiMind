@@ -8,7 +8,7 @@ using SogigiMind.Authentication;
 namespace SogigiMind.Controllers.ApiControllers
 {
     [ApiController, Route("api/admin"), Authorize(Roles = Roles.Dashboard)]
-    public class AdminController
+    public class AdministrationController
     {
         /// <summary>
         /// 指定したロールを持つアクセストークンを発行します。
