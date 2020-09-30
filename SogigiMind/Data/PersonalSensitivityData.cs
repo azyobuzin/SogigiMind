@@ -1,14 +1,12 @@
 ﻿#nullable disable
 
 using System;
-using System.ComponentModel.DataAnnotations;
 
 namespace SogigiMind.Data
 {
     public class PersonalSensitivityData
     {
-        [Required]
-        public string UserId { get; set; }
+        public long UserId { get; set; }
 
         public EndUserData User { get; set; }
 

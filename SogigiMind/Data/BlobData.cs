@@ -2,7 +2,6 @@
 
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SogigiMind.Data
 {
@@ -13,11 +12,12 @@ namespace SogigiMind.Data
         [Required]
         public byte[] Content { get; set; }
 
+        public long ContentLength { get; set; }
+
+        public string ContentType { get; set; }
+
         public string Etag { get; set; }
 
         public DateTime? LastModified { get; set; }
-
-        [Column(TypeName = "jsonb")]
-        public string Metadata { get; set; }
     }
 }

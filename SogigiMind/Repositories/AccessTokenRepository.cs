@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using SogigiMind.Data;
 
-namespace SogigiMind.Services
+namespace SogigiMind.Repositories
 {
     public class AccessTokenRepository
     {
@@ -24,11 +24,10 @@ namespace SogigiMind.Services
         public async Task<ClaimsIdentity?> GetIdentityByTokenAsync(string token)
         {
             var tokenHash = ComputeTokenHash(token);
-            var now = this._clock.UtcNow.UtcDateTime;
             var accessTokenData = await this._dbContext
                 .AccessTokens.AsNoTracking()
                 .Include(x => x.Claims)
-                .SingleOrDefaultAsync(x => x.TokenHash == tokenHash && (x.Expiration == null || x.Expiration.Value < now))
+                .SingleOrDefaultAsync(x => x.TokenHash == tokenHash)
                 .ConfigureAwait(false);
 
             if (accessTokenData == null) return null;
@@ -38,13 +37,12 @@ namespace SogigiMind.Services
                 "AccessToken");
         }
 
-        public Task InsertIdenityAsync(string token, DateTimeOffset? expiration, ClaimsIdentity identity)
+        public Task InsertIdenityAsync(string token, ClaimsIdentity identity)
         {
             var accessTokenData = new AccessTokenData()
             {
                 TokenHash = ComputeTokenHash(token),
-                Expiration = expiration?.UtcDateTime,
-                InsertedAt = DateTime.UtcNow,
+                InsertedAt = this._clock.UtcNow.UtcDateTime,
             };
             this._dbContext.Add(accessTokenData);
 

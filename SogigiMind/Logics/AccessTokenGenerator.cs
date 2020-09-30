@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace SogigiMind.Services
+namespace SogigiMind.Logics
 {
     public static class AccessTokenGenerator
     {

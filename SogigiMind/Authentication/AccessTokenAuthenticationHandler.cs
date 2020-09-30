@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
-using SogigiMind.Services;
+using SogigiMind.Repositories;
 
 namespace SogigiMind.Authentication
 {
@@ -36,6 +37,16 @@ namespace SogigiMind.Authentication
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
             var identity = await this._accessTokenService.GetIdentityByTokenAsync(token).ConfigureAwait(false);
+
+            if (identity == null) return AuthenticateResult.Fail("Invalid token");
+
+            var expirationClaim = identity.Claims
+                .Where(x => x != null && x.Type == ClaimTypes.Expiration)
+                .Select(x => (DateTimeOffset?)DateTimeOffset.Parse(x.Value))
+                .OrderBy(x => x!.Value)
+                .FirstOrDefault();
+            if (expirationClaim < this.Clock.UtcNow)
+                return AuthenticateResult.Fail("Ticket expired");
 
             return identity == null
                 ? AuthenticateResult.NoResult()

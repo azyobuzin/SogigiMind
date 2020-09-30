@@ -1,6 +1,7 @@
 ﻿#nullable disable
 
 using System;
+using System.Collections.Generic;
 
 namespace SogigiMind.Data
 {
@@ -24,6 +25,8 @@ namespace SogigiMind.Data
         public DateTime StartTime { get; set; }
 
         public DateTime InsertedAt { get; set; }
+
+        public List<ThumbnailData> Thumbnails { get; set; }
     }
 
     public enum FetchAttemptStatus

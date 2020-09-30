@@ -1,14 +1,12 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using SogigiMind.Services;
+using SogigiMind.UseCases.AccessToken;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
     [ApiController, Route("api/access_token")]
-    [SuppressMessage("Style", "VSTHRD200:非同期メソッドに \"Async\" サフィックスを使用する")]
     public class AccessTokenController : ControllerBase
     {
         /// <summary>
@@ -17,9 +15,9 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <response code="200">Success</response>
         /// <response code="403"><c>password</c> is incorrect.</response>
         [HttpPost("dashboard")]
-        public async Task<ActionResult<AccessTokenResponse>> Dashboard([FromBody] DashboardTokenRequest request, [FromServices] DashboardLoginService service)
+        public async Task<ActionResult<AccessTokenResponse>> Dashboard([FromBody] DashboardTokenRequest request, [FromServices] CreateDashboardTokenUseCase useCase)
         {
-            var result = await service.ChallengeAsync(request.Password).ConfigureAwait(false);
+            var result = await useCase.ExecuteAsync(request.Password).ConfigureAwait(false);
 
             if (result == null) return this.Forbid();
 

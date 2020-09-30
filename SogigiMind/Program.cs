@@ -15,7 +15,7 @@ namespace SogigiMind
             var host = CreateHostBuilder(args).Build();
 
             var config = host.Services.GetService<IConfiguration>();
-            if (config?.GetValue<bool>("Migrate") == true)
+            if (config?.GetValue<bool>("SogigiMind:Migrate") == true)
             {
                 using var scope = host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -28,18 +28,9 @@ namespace SogigiMind
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureLogging(builder => builder.AddJsonStream())
-                .ConfigureServices(ConfigureServices)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
                 });
-
-        private static void ConfigureServices(HostBuilderContext context, IServiceCollection services)
-        {
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(context.Configuration.GetConnectionString("Default"))
-                    .UseSnakeCaseNamingConvention()
-            );
-        }
     }
 }

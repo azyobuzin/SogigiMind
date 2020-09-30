@@ -13,8 +13,6 @@ namespace SogigiMind.Data
         [Required]
         public byte[] TokenHash { get; set; }
 
-        public DateTime? Expiration { get; set; }
-
         public DateTime InsertedAt { get; set; }
 
         public List<AccessTokenClaimData> Claims { get; set; }

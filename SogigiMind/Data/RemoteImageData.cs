@@ -1,6 +1,7 @@
 #nullable disable
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace SogigiMind.Data
@@ -21,5 +22,9 @@ namespace SogigiMind.Data
         public DateTime InsertedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }
+
+        public List<FetchAttemptData> FetchAttempts { get; set; }
+
+        public List<EstimationLogData> EstimationLogs { get; set; }
     }
 }

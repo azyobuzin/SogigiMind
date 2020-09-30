@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using SogigiMind.Authentication;
+using SogigiMind.Data;
 using SogigiMind.Options;
 using SogigiMind.Repositories;
 using SogigiMind.Services;
@@ -34,6 +36,13 @@ namespace SogigiMind
 
             services.AddAuthorization(options => options.AddEndUserPolicy());
 
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseNpgsql(this.Configuration.GetConnectionString("Default"))
+                    .UseSnakeCaseNamingConvention(),
+                ServiceLifetime.Transient,
+                ServiceLifetime.Singleton
+            );
+
             services.AddSingleton<IMongoDatabase>(serviceProvider =>
             {
                 var databaseOptions = serviceProvider.GetRequiredService<IOptionsMonitor<DatabaseOptions>>().CurrentValue;
@@ -50,37 +59,41 @@ namespace SogigiMind
             this.ConfigureOptions(services);
             this.ConfigureBusinessServices(services);
             this.ConfigureRepositories(services);
+            this.ConfigureUseCases(services);
         }
 
         private void ConfigureOptions(IServiceCollection services)
         {
-            services.AddOptions<DatabaseOptions>().ValidateDataAnnotations();
+            services.AddOptions<DashboardLoginOptions>()
+                .Bind(this.Configuration.GetSection("SogigiMind:DashboardLogin"));
 
-            if (this.Configuration.GetSection("Database") is { } databaseSection)
-                services.Configure<DatabaseOptions>(databaseSection);
-
-            services.AddOptions<ThumbnailOptions>().ValidateDataAnnotations();
-
-            if (this.Configuration.GetSection("Thumbnail") is { } thumbnailSection)
-                services.Configure<ThumbnailOptions>(thumbnailSection);
-
-            if (this.Configuration.GetSection("Tokens") is { } tokensSection)
-                services.Configure<TokenOptions>(tokensSection);
+            services.AddOptions<ThumbnailOptions>()
+                .Bind(this.Configuration.GetSection("SogigiMind:Thumbnail"))
+                .ValidateDataAnnotations();
         }
 
         private void ConfigureBusinessServices(IServiceCollection services)
         {
-            services.AddTransient<AccessTokenRepository>();
-            services.AddTransient<DashboardLoginService>();
+            services.AddSingleton<IBlobServiceFactory, DefaultBlobServiceFactory>();
+            services.AddTransient(serviceProvider => serviceProvider
+                .GetRequiredService<IBlobServiceFactory>()
+                .CreateBlobService(serviceProvider.GetService<ApplicationDbContext>()));
             services.AddSingleton<PersonalSensitivityService>();
             services.AddSingleton<ThumbnailService>();
         }
 
         private void ConfigureRepositories(IServiceCollection services)
         {
+            services.AddTransient<AccessTokenRepository>();
             services.AddSingleton<IFetchStatusRepository, FetchStatusRepository>();
             services.AddSingleton<IPersonalSensitivityRepository, PersonalSensitivityRepository>();
             services.AddSingleton<IThumbnailRepository, ThumbnailRepository>();
+        }
+
+        private void ConfigureUseCases(IServiceCollection services)
+        {
+            services.AddTransient<UseCases.AccessToken.CreateDashboardTokenUseCase>();
+            services.AddTransient<UseCases.Administration.CreateTokenUseCase>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

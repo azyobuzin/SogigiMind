@@ -10,8 +10,7 @@ namespace SogigiMind.Data
     {
         public long Id { get; set; }
 
-        [Required]
-        public string UserId { get; set; }
+        public long UserId { get; set; }
 
         public EndUserData User { get; set; }
 
