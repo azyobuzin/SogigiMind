@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -18,36 +19,12 @@ namespace SogigiMind.Repositories
             this._clock = clock;
         }
 
-        public Task UpdateAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic)
+        /// <returns><see cref="RemoteImageData.Id"/></returns>
+        public async Task<long> UpdateAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic)
         {
             UrlNormalizer.AssertNormalized(url);
             var now = this._clock.UtcNow.UtcDateTime;
 
-            return this._dbContext.Database.IsNpgsql()
-                ? this.UpdatePostgresAsync(url, markAsKnown, isSensitive, isPublic, now)
-                : this.UpdateNaitveAsync(url, markAsKnown, isSensitive, isPublic, now);
-        }
-
-        private Task UpdatePostgresAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic, DateTime now)
-        {
-            return this._dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $@"
-INSERT INTO remote_images (url, is_known, is_sensitive, is_public, inserted_at, updated_at)
-VALUES ({url}, {markAsKnown}, {isSensitive}, {isPublic}, {now}, {now})
-ON CONFLICT (url) DO UPDATE SET
-    is_known = {markAsKnown} OR is_known,
-    is_sensitive = COALESCE({isSensitive}, is_sensitive),
-    is_public = CASE
-        WHEN is_public IS NULL THEN {isPublic}
-        WHEN {isPublic} IS NOT NULL THEN {isPublic} OR is_public
-        ELSE is_public
-    END,
-    updated_at = {now}
-");
-        }
-
-        private async Task UpdateNaitveAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic, DateTime now)
-        {
             var remoteImageData = await this._dbContext.RemoteImages.SingleOrDefaultAsync(x => x.Url == url).ConfigureAwait(false);
 
             if (remoteImageData == null)
@@ -62,17 +39,59 @@ ON CONFLICT (url) DO UPDATE SET
                     UpdatedAt = now,
                 };
                 this._dbContext.Add(remoteImageData);
+                await this._dbContext.SaveChangesAsync().ConfigureAwait(false);
+                // TODO: handle unique constraint violation
             }
             else
             {
-                if (markAsKnown) remoteImageData.IsKnown = true;
-                if (isSensitive != null) remoteImageData.IsSensitive = isSensitive.Value;
-                if (isPublic != null) remoteImageData.IsPublic |= isPublic.Value;
-                remoteImageData.UpdatedAt = now;
+                await UpdateCoreAsync().ConfigureAwait(false);
             }
 
-            await this._dbContext.SaveChangesAsync().ConfigureAwait(false);
-            // TODO: handle unique vaiolation error or DbUpdateConcurrencyException
+            return remoteImageData.Id;
+
+            async ValueTask UpdateCoreAsync()
+            {
+                while (true)
+                {
+                    var changed = false;
+                    if (markAsKnown && !remoteImageData.IsKnown)
+                    {
+                        remoteImageData.IsKnown = true;
+                        changed = true;
+                    }
+                    if (isSensitive != null && remoteImageData.IsSensitive != isSensitive.Value)
+                    {
+                        remoteImageData.IsSensitive = isSensitive.Value;
+                        changed = true;
+                    }
+                    if (isPublic != null && (remoteImageData.IsPublic == null || (!remoteImageData.IsPublic.Value && isPublic.Value)))
+                    {
+                        remoteImageData.IsPublic = isPublic.Value;
+                        changed = true;
+                    }
+                    if (changed) remoteImageData.UpdatedAt = this._clock.UtcNow.UtcDateTime;
+
+                    this._dbContext.Update(remoteImageData);
+
+                    try
+                    {
+                        await this._dbContext.SaveChangesAsync().ConfigureAwait(false);
+                        break;
+                    }
+                    catch (DbUpdateConcurrencyException ex)
+                    {
+                        var entry = ex.Entries.SingleOrDefault();
+                        if (!(entry.Entity is RemoteImageData))
+                            throw new InvalidOperationException($"Entity is not a RemoteImageData. It is {(entry.Entity is { } e ? e.GetType().ToString() : "null")}.", ex);
+
+                        // Reset 
+                        entry.State = EntityState.Detached;
+
+                        // DB の値を使ってもう一度
+                        remoteImageData = (RemoteImageData)(await entry.GetDatabaseValuesAsync().ConfigureAwait(false))!.ToObject();
+                    }
+                }
+            }
         }
     }
 }

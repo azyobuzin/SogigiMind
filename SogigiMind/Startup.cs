@@ -88,6 +88,7 @@ namespace SogigiMind
             services.AddTransient<AccessTokenRepository>();
             services.AddSingleton<IFetchStatusRepository, FetchStatusRepository>();
             services.AddSingleton<IPersonalSensitivityRepository, PersonalSensitivityRepository>();
+            services.AddTransient<RemoteImageRepository>();
             services.AddSingleton<IThumbnailRepository, ThumbnailRepository>();
         }
 
@@ -95,6 +96,8 @@ namespace SogigiMind
         {
             services.AddTransient<UseCases.AccessToken.CreateDashboardTokenUseCase>();
             services.AddTransient<UseCases.Administration.CreateTokenUseCase>();
+            services.AddTransient<UseCases.Sensitivity.ClearUseCase>();
+            services.AddTransient<UseCases.Sensitivity.SetSensitivityUseCase>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

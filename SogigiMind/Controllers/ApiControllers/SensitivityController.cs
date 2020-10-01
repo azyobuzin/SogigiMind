@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SogigiMind.Authentication;
+using SogigiMind.Infrastructures;
+using SogigiMind.UseCases.Sensitivity;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
@@ -14,9 +17,13 @@ namespace SogigiMind.Controllers.ApiControllers
         /// ユーザーにとってセンシティブな画像かを記録します。
         /// </summary>
         [HttpPost]
-        public IActionResult PostSensitivity([FromBody] PostSensitivityRequest request)
+        public async Task<IActionResult> PostSensitivity([FromBody] PostSensitivityRequest request, [FromServices] SetSensitivityUseCase useCase)
         {
-            throw new NotImplementedException();
+            var acct = this.HttpContext.GetAcct();
+            if (string.IsNullOrEmpty(acct)) return this.Forbid();
+
+            await useCase.ExecuteAsync(acct, request.Url, request.IsSensitive).ConfigureAwait(false);
+            return this.Ok();
         }
 
         /// <summary>
@@ -45,9 +52,13 @@ namespace SogigiMind.Controllers.ApiControllers
         /// ユーザーの情報を削除します。
         /// </summary>
         [HttpPost("clear")]
-        public IActionResult Clear()
+        public async Task<IActionResult> Clear([FromServices] ClearUseCase useCase)
         {
-            throw new NotImplementedException();
+            var acct = this.HttpContext.GetAcct();
+            if (string.IsNullOrEmpty(acct)) return this.Forbid();
+
+            await useCase.ExecuteAsync(acct).ConfigureAwait(false);
+            return this.Ok();
         }
 
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。

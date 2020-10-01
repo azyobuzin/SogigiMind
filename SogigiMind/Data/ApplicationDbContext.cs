@@ -35,7 +35,11 @@ namespace SogigiMind.Data
 
             modelBuilder.Entity<AccessTokenClaimData>().HasIndex(x => x.AccessTokenId);
 
-            modelBuilder.Entity<EndUserData>().HasIndex(x => x.Acct).IsUnique();
+            modelBuilder.Entity<EndUserData>(b =>
+            {
+                b.UseXminAsConcurrencyToken();
+                b.HasIndex(x => x.Acct).IsUnique();
+            });
 
             modelBuilder.Entity<EstimationLogData>().HasIndex(x => x.InsertedAt);
 

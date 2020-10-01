@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.Http;
+using SogigiMind.Authentication;
 
 namespace SogigiMind.Infrastructures
 {
-    public class HttpContextExtensions
+    public static class HttpContextExtensions
     {
-
+        public static string? GetAcct(this HttpContext httpContext)
+        {
+            return httpContext.User?.FindFirst(SogigiMindClaimTypes.AccountName)?.Value;
+        }
     }
 }
