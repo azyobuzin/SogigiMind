@@ -79,6 +79,7 @@ namespace SogigiMind
                 .GetRequiredService<IBlobServiceFactory>()
                 .CreateBlobService(serviceProvider.GetService<ApplicationDbContext>()));
             services.AddSingleton<PersonalSensitivityService>();
+            services.AddRemoteFetchService();
             services.AddSingleton<ThumbnailService>();
         }
 

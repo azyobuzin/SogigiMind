@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,10 +25,17 @@ namespace SogigiMind.Repositories
         public async Task<ClaimsIdentity?> GetIdentityByTokenAsync(string token)
         {
             var tokenHash = ComputeTokenHash(token);
+
+            // Waiting for EFCore 5.0
+            // https://github.com/dotnet/efcore/issues/10582
+            var whereClause = this._dbContext.Database.IsInMemory()
+                ? (Expression<Func<AccessTokenData, bool>>)(x => x.TokenHash.SequenceEqual(tokenHash))
+                : (x => x.TokenHash == tokenHash);
+
             var accessTokenData = await this._dbContext
                 .AccessTokens.AsNoTracking()
                 .Include(x => x.Claims)
-                .SingleOrDefaultAsync(x => x.TokenHash == tokenHash)
+                .SingleOrDefaultAsync(whereClause)
                 .ConfigureAwait(false);
 
             if (accessTokenData == null) return null;

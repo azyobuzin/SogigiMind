@@ -8,6 +8,8 @@ namespace SogigiMind.Options
         /// <summary>指定するとそのプロキシを、指定しないとシステムのプロキシを使用します。</summary>
         public string? Proxy { get; set; }
 
+        public TimeSpan FetchTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
         /// <summary>このサイズを超えるデータはダウンロードしない</summary>
         [Range(1, int.MaxValue)]
         public int DownloadSizeLimit { get; set; } = 50 * 1024 * 1024;

@@ -15,6 +15,8 @@
     <PackageReference Include="EFCore.NamingConventions" Version="1.1.0" />
     <PackageReference Include="JsonStreamLogger" Version="0.3.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.8" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="3.1.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="3.1.8" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="6.7.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" PrivateAssets="All" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="16.7.56" PrivateAssets="All" />

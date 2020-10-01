@@ -45,7 +45,11 @@ namespace SogigiMind.Data
                 nameof(PersonalSensitivityData.UserId),
                 nameof(PersonalSensitivityData.RemoteImageId));
 
-            modelBuilder.Entity<RemoteImageData>().HasIndex(x => x.Url).IsUnique();
+            modelBuilder.Entity<RemoteImageData>(b =>
+            {
+                b.UseXminAsConcurrencyToken();
+                b.HasIndex(x => x.Url).IsUnique();
+            });
 
             modelBuilder.Entity<ThumbnailData>().HasIndex(x => x.FetchAttemptId);
         }
