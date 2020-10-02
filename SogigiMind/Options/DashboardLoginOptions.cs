@@ -6,7 +6,7 @@ namespace SogigiMind.Options
 {
     public class DashboardLoginOptions
     {
-        public string Password { get; set; }
+        public string? Password { get; set; }
 
         public TimeSpan TokenExpiration { get; set; } = TimeSpan.FromDays(1);
     }

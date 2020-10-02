@@ -9,15 +9,30 @@ namespace SogigiMind.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "access_tokens",
+                columns: table => new
+                {
+                    id = table.Column<long>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    token_hash = table.Column<byte[]>(nullable: false),
+                    inserted_at = table.Column<DateTime>(nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_access_tokens", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "blobs",
                 columns: table => new
                 {
                     id = table.Column<long>(nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     content = table.Column<byte[]>(nullable: false),
+                    content_length = table.Column<long>(nullable: false),
+                    content_type = table.Column<string>(nullable: true),
                     etag = table.Column<string>(nullable: true),
-                    last_modified = table.Column<DateTime>(nullable: true),
-                    metadata = table.Column<string>(type: "jsonb", nullable: true)
+                    last_modified = table.Column<DateTime>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -28,10 +43,13 @@ namespace SogigiMind.Data.Migrations
                 name: "end_users",
                 columns: table => new
                 {
-                    id = table.Column<string>(nullable: false),
+                    id = table.Column<long>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    acct = table.Column<string>(nullable: true),
                     settings = table.Column<string>(type: "jsonb", nullable: false),
                     inserted_at = table.Column<DateTime>(nullable: false),
-                    updated_at = table.Column<DateTime>(nullable: false)
+                    updated_at = table.Column<DateTime>(nullable: false),
+                    xmin = table.Column<uint>(type: "xid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -49,11 +67,33 @@ namespace SogigiMind.Data.Migrations
                     is_sensitive = table.Column<bool>(nullable: true),
                     is_public = table.Column<bool>(nullable: true),
                     inserted_at = table.Column<DateTime>(nullable: false),
-                    updated_at = table.Column<DateTime>(nullable: false)
+                    updated_at = table.Column<DateTime>(nullable: false),
+                    xmin = table.Column<uint>(type: "xid", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_remote_images", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "access_token_claims",
+                columns: table => new
+                {
+                    id = table.Column<long>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    access_token_id = table.Column<long>(nullable: false),
+                    claim_type = table.Column<string>(nullable: false),
+                    claim_value = table.Column<string>(nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_access_token_claims", x => x.id);
+                    table.ForeignKey(
+                        name: "fk_access_token_claims_access_tokens_access_token_id",
+                        column: x => x.access_token_id,
+                        principalTable: "access_tokens",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -62,7 +102,7 @@ namespace SogigiMind.Data.Migrations
                 {
                     id = table.Column<long>(nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<string>(nullable: false),
+                    user_id = table.Column<long>(nullable: false),
                     remote_image_id = table.Column<long>(nullable: false),
                     result = table.Column<string>(type: "jsonb", nullable: false),
                     inserted_at = table.Column<DateTime>(nullable: false)
@@ -92,8 +132,8 @@ namespace SogigiMind.Data.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     remote_image_id = table.Column<long>(nullable: false),
                     status = table.Column<int>(nullable: false),
+                    content_length = table.Column<long>(nullable: true),
                     content_type = table.Column<string>(nullable: true),
-                    content_hash = table.Column<string>(nullable: true),
                     start_time = table.Column<DateTime>(nullable: false),
                     inserted_at = table.Column<DateTime>(nullable: false)
                 },
@@ -112,7 +152,7 @@ namespace SogigiMind.Data.Migrations
                 name: "personal_sensitivities",
                 columns: table => new
                 {
-                    user_id = table.Column<string>(nullable: false),
+                    user_id = table.Column<long>(nullable: false),
                     remote_image_id = table.Column<long>(nullable: false),
                     is_sensitive = table.Column<bool>(nullable: false),
                     inserted_at = table.Column<DateTime>(nullable: false),
@@ -166,6 +206,23 @@ namespace SogigiMind.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "ix_access_token_claims_access_token_id",
+                table: "access_token_claims",
+                column: "access_token_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_access_tokens_token_hash",
+                table: "access_tokens",
+                column: "token_hash",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_end_users_acct",
+                table: "end_users",
+                column: "acct",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "ix_estimation_logs_inserted_at",
                 table: "estimation_logs",
                 column: "inserted_at");
@@ -210,6 +267,9 @@ namespace SogigiMind.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "access_token_claims");
+
+            migrationBuilder.DropTable(
                 name: "estimation_logs");
 
             migrationBuilder.DropTable(
@@ -217,6 +277,9 @@ namespace SogigiMind.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "thumbnails");
+
+            migrationBuilder.DropTable(
+                name: "access_tokens");
 
             migrationBuilder.DropTable(
                 name: "end_users");

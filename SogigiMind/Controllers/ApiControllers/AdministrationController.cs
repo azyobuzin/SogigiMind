@@ -15,6 +15,13 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <summary>
         /// 指定したロールを持つアクセストークンを発行します。
         /// </summary>
+        /// <remarks>
+        /// <c>roles</c> に指定できる値は、以下の通りです。
+        /// <list type="bullet">
+        /// <item><c>urn:sogigimind:role:app_server</c></item>
+        /// <item><c>urn:sogigimind:role:training_worker</c></item>
+        /// </list>
+        /// </remarks>
         [HttpPost("token")]
         public async Task<ActionResult<TokenResponse>> CreateToken([FromBody] TokenRequest request, [FromServices] CreateTokenUseCase useCase)
         {
@@ -38,9 +45,6 @@ namespace SogigiMind.Controllers.ApiControllers
             /// <summary>
             /// 発行するトークンに割り当てるロール
             /// </summary>
-            /// <remarks>
-            /// 有効な値は <see cref="SogigiMindRoles.AppServer"/> または <see cref="SogigiMindRoles.TrainingWorker"/>。
-            /// </remarks>
             public IReadOnlyList<string>? Roles { get; set; }
 
             /// <summary>

@@ -32,7 +32,7 @@ namespace SogigiMind.UseCases.AccessToken
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
         }
 
-        public async Task<CreateDashboardTokenOutput?> ExecuteAsync(string password)
+        public async Task<CreateDashboardTokenOutput?> ExecuteAsync(string? password)
         {
             var options = this._options.CurrentValue;
 

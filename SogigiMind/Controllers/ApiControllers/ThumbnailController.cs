@@ -58,6 +58,7 @@ namespace SogigiMind.Controllers.ApiControllers
             /// The names of accounts mentioning the URL.
             /// </summary>
             public IReadOnlyList<string?>? SourceAccounts { get; set; }
+            // TODO: SourceAccounts を使って、フォロワーがアクティブなときだけサムネイル生成をするようにする
         }
     }
 }

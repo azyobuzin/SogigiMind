@@ -7,11 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
-using MongoDB.Driver;
 using SogigiMind.Authentication;
 using SogigiMind.Data;
+using SogigiMind.Logics;
 using SogigiMind.Options;
 using SogigiMind.Repositories;
 using SogigiMind.Services;
@@ -43,17 +42,11 @@ namespace SogigiMind
                 ServiceLifetime.Singleton
             );
 
-            services.AddSingleton<IMongoDatabase>(serviceProvider =>
-            {
-                var databaseOptions = serviceProvider.GetRequiredService<IOptionsMonitor<DatabaseOptions>>().CurrentValue;
-                var client = new MongoClient(databaseOptions.ConnectionString);
-                return client.GetDatabase(databaseOptions.Database);
-            });
-
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo() { Title = "SogigiMind", Version = "0.2.0" });
+                c.SwaggerDoc("v1", new OpenApiInfo() { Title = "SogigiMind", Version = AppVersion.InformationalVersion });
                 c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "SogigiMind.xml"));
+                c.AddSogigiMindAuthenticationOperationFilter();
             });
 
             this.ConfigureOptions(services);
@@ -79,15 +72,12 @@ namespace SogigiMind
                 .GetRequiredService<IBlobServiceFactory>()
                 .CreateBlobService(serviceProvider.GetService<ApplicationDbContext>()));
             services.AddRemoteFetchService();
-            services.AddSingleton<ThumbnailService>();
         }
 
         private void ConfigureRepositories(IServiceCollection services)
         {
             services.AddTransient<AccessTokenRepository>();
-            services.AddSingleton<IFetchStatusRepository, FetchStatusRepository>();
             services.AddTransient<RemoteImageRepository>();
-            services.AddSingleton<IThumbnailRepository, ThumbnailRepository>();
         }
 
         private void ConfigureUseCases(IServiceCollection services)

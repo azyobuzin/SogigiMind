@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using SogigiMind.Logics;
 using SogigiMind.Options;
 using SogigiMind.Services;
 
@@ -50,7 +51,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
                     var userAgent = httpClient.DefaultRequestHeaders.UserAgent;
                     userAgent.Clear();
-                    userAgent.Add(new ProductInfoHeaderValue("SogigiMind", typeof(DefaultRemoteFetchService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0"));
+                    userAgent.Add(new ProductInfoHeaderValue("SogigiMind", AppVersion.InformationalVersion));
                 })
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
                 {

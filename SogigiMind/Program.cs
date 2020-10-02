@@ -27,6 +27,8 @@ namespace SogigiMind
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                // appsettings.override.json is for local debug
+                .ConfigureAppConfiguration(builder => builder.AddJsonFile("appsettings.override.json", true, true))
                 .ConfigureLogging(builder => builder.AddJsonStream())
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
