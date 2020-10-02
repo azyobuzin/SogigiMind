@@ -6,11 +6,11 @@ using SogigiMind.Data;
 
 namespace SogigiMind.UseCases.Sensitivity
 {
-    public class ClearUseCase
+    public class DeletePersonalSensitivitiesUseCase
     {
         private readonly ApplicationDbContext _dbContext;
 
-        public ClearUseCase(ApplicationDbContext dbContext)
+        public DeletePersonalSensitivitiesUseCase(ApplicationDbContext dbContext)
         {
             this._dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         }

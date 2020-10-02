@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 namespace SogigiMind.Infrastructures
 {
+    [SuppressMessage("Style", "VSTHRD200:非同期メソッドに \"Async\" サフィックスを使用する")]
+    [SuppressMessage("Usage", "VSTHRD003:外部タスクを待機しない")]
     internal static class TaskExtensions
     {
         /// <summary>
         /// await されなくても <see cref="TaskScheduler.UnobservedTaskException"/> が発生しないようにします。
         /// </summary>
-        [SuppressMessage("Style", "VSTHRD200:非同期メソッドに \"Async\" サフィックスを使用する")]
-        [SuppressMessage("Usage", "VSTHRD003:外部タスクを待機しない", Justification = "Just returns the argument")]
         public static Task<T> TouchException<T>(this Task<T> task)
         {
             var awaiter = task.ConfigureAwait(false).GetAwaiter();
@@ -37,6 +37,11 @@ namespace SogigiMind.Infrastructures
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default
             );
+        }
+
+        public static async Task<TResult> Select<TSource, TResult>(this Task<TSource> task, Func<TSource, TResult> selector)
+        {
+            return selector(await task.ConfigureAwait(false));
         }
     }
 }

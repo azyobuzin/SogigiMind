@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ namespace SogigiMind.Controllers.ApiControllers
         [HttpPost]
         public async Task<IActionResult> PostSensitivity([FromBody] PostSensitivityRequest request, [FromServices] SetSensitivityUseCase useCase)
         {
+            // TODO: acct の取得を共通化して、引数から取れるようにしたい
             var acct = this.HttpContext.GetAcct();
             if (string.IsNullOrEmpty(acct)) return this.Forbid();
 
@@ -31,9 +33,21 @@ namespace SogigiMind.Controllers.ApiControllers
         /// </summary>
         /// <returns>戻り値は <paramref name="request"/> と同じ要素数、順番です。</returns>
         [HttpPost("estimate")]
-        public ActionResult<IEnumerable<EstimateSensitivityResponseItem>> EstimateSensitivity([FromBody] IEnumerable<EstimateSensitivityRequestItem> request)
+        public async Task<ActionResult<IReadOnlyList<EstimateSensitivityResponseItem>>> EstimateSensitivity(
+            [FromBody] IEnumerable<EstimateSensitivityRequestItem>? request,
+            [FromServices] EstimateSensitivityUseCase useCase)
         {
-            throw new NotImplementedException();
+            var acct = this.HttpContext.GetAcct();
+            if (string.IsNullOrEmpty(acct)) return this.Forbid();
+
+            var inputs = request?.Select(x => new EstimateSensitivityInputItem(x.Url, x.IsSensitive, x.IsPublic)).ToArray();
+            var outputs = await useCase.ExecuteAsync(acct, inputs).ConfigureAwait(false);
+            return outputs.Select(x => new EstimateSensitivityResponseItem()
+            {
+                Url = x.Url,
+                EstimatedSensitivity = x.EstimatedSensitivity,
+                PersonalSensitivity = x.PersonalSensitivity,
+            }).ToArray();
         }
 
         [HttpGet("settings")]
@@ -52,7 +66,7 @@ namespace SogigiMind.Controllers.ApiControllers
         /// ユーザーの情報を削除します。
         /// </summary>
         [HttpPost("clear")]
-        public async Task<IActionResult> Clear([FromServices] ClearUseCase useCase)
+        public async Task<IActionResult> Clear([FromServices] DeletePersonalSensitivitiesUseCase useCase)
         {
             var acct = this.HttpContext.GetAcct();
             if (string.IsNullOrEmpty(acct)) return this.Forbid();
@@ -86,11 +100,6 @@ namespace SogigiMind.Controllers.ApiControllers
             /// Whether the URL is attached to a public post.
             /// </summary>
             public bool? IsPublic { get; set; }
-
-            /// <summary>
-            /// The names of accounts mentioning the URL.
-            /// </summary>
-            public IReadOnlyList<string?>? SourceAccounts { get; set; }
         }
 
         public class EstimateSensitivityResponseItem

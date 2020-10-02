@@ -29,10 +29,9 @@ namespace SogigiMind.UseCases.Administration
         private static readonly ImmutableArray<string> s_allowedRoles = ImmutableArray.Create(SogigiMindRoles.AppServer, SogigiMindRoles.TrainingWorker);
 
         /// <exception cref="CreateTokenInvalidRolesException"><paramref name="roles"/> is invalid.</exception>
-        public async Task<CreateTokenOutput> ExecuteAsync(IReadOnlyList<string> roles, string? description)
+        public async Task<CreateTokenOutput> ExecuteAsync(IReadOnlyList<string>? roles, IReadOnlyList<string>? domains, string? description)
         {
-            if (roles == null || roles.Count == 0)
-                throw new CreateTokenInvalidRolesException("roles is empty.");
+            roles ??= Array.Empty<string>();
 
             if (roles.Any(x => !s_allowedRoles.Contains(x)))
                 throw new CreateTokenInvalidRolesException("roles contains an unknown role.");
@@ -46,6 +45,9 @@ namespace SogigiMind.UseCases.Administration
             var identity = new GenericIdentity(displayName.ToString());
             identity.AddClaims(roles.Select(x => new Claim(identity.RoleClaimType, x)));
             identity.AddClaim(new Claim(SogigiMindClaimTypes.VisibleInDashboard, "true"));
+
+            if (domains != null)
+                identity.AddClaims(domains.Select(x => new Claim(SogigiMindClaimTypes.AllowedDomain, x)));
 
             if (description != null)
                 identity.AddClaim(new Claim(SogigiMindClaimTypes.Description, description));

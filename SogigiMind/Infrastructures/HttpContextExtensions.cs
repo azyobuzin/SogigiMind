@@ -7,7 +7,7 @@ namespace SogigiMind.Infrastructures
     {
         public static string? GetAcct(this HttpContext httpContext)
         {
-            return httpContext.User?.FindFirst(SogigiMindClaimTypes.AccountName)?.Value;
+            return httpContext.User?.FindFirst(SogigiMindClaimTypes.Acct)?.Value;
         }
     }
 }

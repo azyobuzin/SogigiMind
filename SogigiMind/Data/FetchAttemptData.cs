@@ -15,9 +15,9 @@ namespace SogigiMind.Data
 
         public FetchAttemptStatus Status { get; set; }
 
-        public string ContentType { get; set; }
+        public long? ContentLength { get; set; }
 
-        public string ContentHash { get; set; }
+        public string ContentType { get; set; }
 
         /// <summary>
         /// 取得処理を開始した時刻

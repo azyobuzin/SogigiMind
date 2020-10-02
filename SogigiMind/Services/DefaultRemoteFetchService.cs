@@ -50,7 +50,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
                     var userAgent = httpClient.DefaultRequestHeaders.UserAgent;
                     userAgent.Clear();
-                    userAgent.Add(new ProductInfoHeaderValue("SogigiMind", typeof(DefaultRemoteFetchService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0"))
+                    userAgent.Add(new ProductInfoHeaderValue("SogigiMind", typeof(DefaultRemoteFetchService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0"));
                 })
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
                 {

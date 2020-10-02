@@ -78,7 +78,6 @@ namespace SogigiMind
             services.AddTransient(serviceProvider => serviceProvider
                 .GetRequiredService<IBlobServiceFactory>()
                 .CreateBlobService(serviceProvider.GetService<ApplicationDbContext>()));
-            services.AddSingleton<PersonalSensitivityService>();
             services.AddRemoteFetchService();
             services.AddSingleton<ThumbnailService>();
         }
@@ -87,7 +86,6 @@ namespace SogigiMind
         {
             services.AddTransient<AccessTokenRepository>();
             services.AddSingleton<IFetchStatusRepository, FetchStatusRepository>();
-            services.AddSingleton<IPersonalSensitivityRepository, PersonalSensitivityRepository>();
             services.AddTransient<RemoteImageRepository>();
             services.AddSingleton<IThumbnailRepository, ThumbnailRepository>();
         }
@@ -96,7 +94,8 @@ namespace SogigiMind
         {
             services.AddTransient<UseCases.AccessToken.CreateDashboardTokenUseCase>();
             services.AddTransient<UseCases.Administration.CreateTokenUseCase>();
-            services.AddTransient<UseCases.Sensitivity.ClearUseCase>();
+            services.AddTransient<UseCases.Sensitivity.DeletePersonalSensitivitiesUseCase>();
+            services.AddTransient<UseCases.Sensitivity.EstimateSensitivityUseCase>();
             services.AddTransient<UseCases.Sensitivity.SetSensitivityUseCase>();
         }
 

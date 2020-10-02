@@ -40,6 +40,7 @@ namespace SogigiMind.Authentication
 
             if (identity == null) return AuthenticateResult.Fail("Invalid token");
 
+            // 有効期限の検証
             var expirationClaim = identity.Claims
                 .Where(x => x != null && x.Type == ClaimTypes.Expiration)
                 .Select(x => (DateTimeOffset?)DateTimeOffset.Parse(x.Value))
@@ -47,6 +48,24 @@ namespace SogigiMind.Authentication
                 .FirstOrDefault();
             if (expirationClaim < this.Clock.UtcNow)
                 return AuthenticateResult.Fail("Ticket expired");
+
+            // AllowedDomain によるユーザーなりすましの許可
+            foreach (var acctHeader in this.Request.Headers["x-sogigimind-acct"])
+            {
+                // foo@domain の形式であることを確認
+                var i = acctHeader.IndexOf('@');
+                if (i < 0) continue;
+
+                var domain = acctHeader.Substring(i + 1).TrimEnd();
+                if (domain.Length == 0) continue;
+
+                var isAllowed = identity.Claims
+                    .Any(x => x != null &&
+                        x.Type == SogigiMindClaimTypes.AllowedDomain &&
+                        x.Value == domain);
+                if (isAllowed)
+                    identity.AddClaim(new Claim(SogigiMindClaimTypes.Acct, acctHeader.Trim()));
+            }
 
             return identity == null
                 ? AuthenticateResult.NoResult()

@@ -20,7 +20,7 @@ namespace SogigiMind.Controllers.ApiControllers
         {
             try
             {
-                var result = await useCase.ExecuteAsync(request.Roles, request.Description).ConfigureAwait(false);
+                var result = await useCase.ExecuteAsync(request.Roles, request.Domains, request.Description).ConfigureAwait(false);
                 return new TokenResponse() { Token = result.Token, Expiration = result.Expiration };
             }
             catch (CreateTokenInvalidRolesException ex)
@@ -31,21 +31,22 @@ namespace SogigiMind.Controllers.ApiControllers
             }
         }
 
-        /// <summary>
-        /// 指定したユーザーの情報を削除します。
-        /// </summary>
-        [HttpPost("delete_user")]
-        public IActionResult DeleteUser([Required] string user)
-        {
-            throw new NotImplementedException();
-        }
-
 #pragma warning disable CS8618 // Null 非許容フィールドは初期化されていません。null 許容として宣言することを検討してください。
 
         public class TokenRequest
         {
-            [Required]
-            public IReadOnlyList<string> Roles { get; set; }
+            /// <summary>
+            /// 発行するトークンに割り当てるロール
+            /// </summary>
+            /// <remarks>
+            /// 有効な値は <see cref="SogigiMindRoles.AppServer"/> または <see cref="SogigiMindRoles.TrainingWorker"/>。
+            /// </remarks>
+            public IReadOnlyList<string>? Roles { get; set; }
+
+            /// <summary>
+            /// 発行したトークンを使って、このプロパティに指定したドメインのユーザーとして操作を行うことができる。
+            /// </summary>
+            public IReadOnlyList<string>? Domains { get; set; }
 
             public string? Description { get; set; }
         }
