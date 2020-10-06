@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using SogigiMind.DataAccess;
 using SogigiMind.Infrastructures;
-using SogigiMind.Repositories;
 
 namespace SogigiMind.Authentication
 {
@@ -16,17 +16,17 @@ namespace SogigiMind.Authentication
     {
         public const string DefaultAuthenticationScheme = "SogigiMindAccessToken";
 
-        private readonly AccessTokenRepository _accessTokenService;
+        private readonly IAccessTokenDao _accessTokenDao;
 
         public AccessTokenAuthenticationHandler(
-            AccessTokenRepository accessTokenService,
+            IAccessTokenDao accessTokenDao,
             IOptionsMonitor<AuthenticationSchemeOptions> authenticationSchemeOptions,
             ILoggerFactory logger,
             UrlEncoder encoder,
             ISystemClock clock)
             : base(authenticationSchemeOptions, logger, encoder, clock)
         {
-            this._accessTokenService = accessTokenService;
+            this._accessTokenDao = accessTokenDao;
         }
 
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -37,7 +37,7 @@ namespace SogigiMind.Authentication
                 return AuthenticateResult.NoResult();
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
-            var identity = await this._accessTokenService.GetIdentityByTokenAsync(token).ConfigureAwait(false);
+            var identity = await this._accessTokenDao.GetIdentityByTokenAsync(token).ConfigureAwait(false);
 
             if (identity == null) return AuthenticateResult.Fail("Invalid token");
 

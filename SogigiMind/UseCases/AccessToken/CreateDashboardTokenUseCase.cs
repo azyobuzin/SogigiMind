@@ -7,27 +7,27 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SogigiMind.Authentication;
+using SogigiMind.DataAccess;
 using SogigiMind.Logics;
 using SogigiMind.Options;
-using SogigiMind.Repositories;
 
 namespace SogigiMind.UseCases.AccessToken
 {
     public class CreateDashboardTokenUseCase
     {
         private readonly IOptionsMonitor<DashboardLoginOptions> _options;
-        private readonly AccessTokenRepository _accessTokenRepository;
+        private readonly IAccessTokenDao _accessTokenDao;
         private readonly ISystemClock _clock;
         private readonly ILogger _logger;
 
         public CreateDashboardTokenUseCase(
             IOptionsMonitor<DashboardLoginOptions> options,
-            AccessTokenRepository accessTokenRepository,
+            IAccessTokenDao accessTokenDao,
             ISystemClock? clock,
             ILogger<CreateDashboardTokenUseCase>? logger)
         {
             this._options = options ?? throw new ArgumentNullException(nameof(options));
-            this._accessTokenRepository = accessTokenRepository ?? throw new ArgumentNullException(nameof(accessTokenRepository));
+            this._accessTokenDao = accessTokenDao ?? throw new ArgumentNullException(nameof(accessTokenDao));
             this._clock = clock ?? new SystemClock();
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
         }
@@ -55,7 +55,7 @@ namespace SogigiMind.UseCases.AccessToken
 
             var token = AccessTokenGenerator.Generate("dashboard");
 
-            await this._accessTokenRepository.InsertIdenityAsync(token, identity).ConfigureAwait(false);
+            await this._accessTokenDao.InsertIdenityAsync(token, identity).ConfigureAwait(false);
 
             this._logger.LogInformation("Dashboard login success");
 

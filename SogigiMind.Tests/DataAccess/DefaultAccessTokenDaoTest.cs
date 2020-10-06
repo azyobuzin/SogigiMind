@@ -10,16 +10,16 @@ using SogigiMind.Authentication;
 using SogigiMind.TestInfrastructures;
 using Xunit;
 
-namespace SogigiMind.Repositories
+namespace SogigiMind.DataAccess
 {
-    public class AccessTokenRepositoryTest
+    public class DefaultAccessTokenDaoTest
     {
         [Fact]
         public async Task TestInsertAndGet()
         {
             using var dbContext = ApplicationDbContextFactory.CreateInMemory();
             var clock = new ConstantClock(new DateTimeOffset(2020, 10, 1, 0, 0, 0, TimeSpan.Zero));
-            var repository = new AccessTokenRepository(dbContext, clock);
+            var repository = new DefaultAccessTokenDao(dbContext, clock);
 
             var token = "test.ecdcf6a6f05a4456b9b079fe99b8e7e5";
             var name = "Name";

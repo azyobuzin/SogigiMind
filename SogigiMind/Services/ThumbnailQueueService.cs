@@ -3,11 +3,15 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using SogigiMind.DataAccess;
 using SogigiMind.Services;
 
 namespace SogigiMind.Services
 {
-    public class ThumbnailQueueService : IThumbnailService, IThumbnailQueue
+    /// <summary>
+    /// サムネイル作成のキューを提供します。
+    /// </summary>
+    public class ThumbnailQueueService : IThumbnailQueueProducer, IThumbnailQueueConsumer
     {
         private readonly Channel<ThumbnailQueueItem> _channel;
 
@@ -16,16 +20,10 @@ namespace SogigiMind.Services
             this._channel = Channel.CreateUnbounded<ThumbnailQueueItem>();
         }
 
-        public Task<IReadOnlyList<ThumbnailInfo>> CreateThumbnailAsync(string url, CancellationToken cancellationToken = default)
+        public void Enqueue(ThumbnailQueueItem queueItem)
         {
-            var tcs = new TaskCompletionSource<IReadOnlyList<ThumbnailInfo>>();
-            var written = this._channel.Writer.TryWrite(new ThumbnailQueueItem(url, tcs));
-            return written ? tcs.Task : throw new InvalidOperationException("Could not write to the channel.");
-        }
-
-        public void Enqueue(string url)
-        {
-            var written = this._channel.Writer.TryWrite(new ThumbnailQueueItem(url, null));
+            if (queueItem == null) throw new ArgumentNullException(nameof(queueItem));
+            var written = this._channel.Writer.TryWrite(queueItem);
             if (!written) throw new InvalidOperationException("Could not write to the channel.");
         }
 
@@ -57,13 +55,31 @@ namespace SogigiMind.Services
         }
     }
 
-    public interface IThumbnailQueue
+    public interface IThumbnailQueueProducer
     {
-        void Enqueue(string url);
+        void Enqueue(ThumbnailQueueItem queueItem);
+    }
 
+    public interface IThumbnailQueueConsumer
+    {
         Task<ThumbnailQueueItem?> DequeueAsync(CancellationToken cancellationToken = default);
 
         void Stop();
+    }
+
+    public static class ThumbnailQueueProducerExtensions
+    {
+        public static Task<IReadOnlyList<ThumbnailInfo>> GetOrCreateThumbnailAsync(this IThumbnailQueueProducer producer, string url)
+        {
+            var tcs = new TaskCompletionSource<IReadOnlyList<ThumbnailInfo>>();
+            producer.Enqueue(new ThumbnailQueueItem(url, tcs));
+            return tcs.Task;
+        }
+
+        public static void PostCreateThumbnail(IThumbnailQueueProducer producer, string url)
+        {
+            producer.Enqueue(new ThumbnailQueueItem(url, null));
+        }
     }
 }
 
@@ -74,8 +90,8 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection AddThumbnailQueueService(this IServiceCollection services)
         {
             var service = new ThumbnailQueueService();
-            services.AddSingleton<IThumbnailService>(service);
-            services.AddSingleton<IThumbnailQueue>(service);
+            services.AddSingleton<IThumbnailQueueProducer>(service);
+            services.AddSingleton<IThumbnailQueueConsumer>(service);
             return services;
         }
     }

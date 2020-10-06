@@ -6,14 +6,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using SogigiMind.Authentication;
 using SogigiMind.BackgroundServices;
 using SogigiMind.Data;
+using SogigiMind.DataAccess;
 using SogigiMind.Logics;
 using SogigiMind.Options;
-using SogigiMind.Repositories;
 using SogigiMind.Services;
 
 namespace SogigiMind
@@ -31,17 +30,10 @@ namespace SogigiMind
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddAuthentication(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme)
-                .AddScheme<AuthenticationSchemeOptions, AccessTokenAuthenticationHandler>(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme, null);
-
-            services.AddAuthorization(options => options.AddEndUserPolicy());
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(this.Configuration.GetConnectionString("Default"))
-                    .UseSnakeCaseNamingConvention(),
-                ServiceLifetime.Scoped,
-                ServiceLifetime.Singleton
-            );
+                    .UseSnakeCaseNamingConvention());
 
             services.AddSwaggerGen(c =>
             {
@@ -51,8 +43,9 @@ namespace SogigiMind
             });
 
             this.ConfigureOptions(services);
+            this.ConfigureAuthentication(services);
             this.ConfigureBusinessServices(services);
-            this.ConfigureRepositories(services);
+            this.ConfigureDataAccessObjects(services);
             this.ConfigureUseCases(services);
             this.ConfigureBackgroundServices(services);
         }
@@ -67,18 +60,27 @@ namespace SogigiMind
                 .ValidateDataAnnotations();
         }
 
+        private void ConfigureAuthentication(IServiceCollection services)
+        {
+            services.AddAuthentication(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme)
+                .AddScheme<AuthenticationSchemeOptions, AccessTokenAuthenticationHandler>(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme, null);
+
+            services.AddAuthorization(options => options.AddEndUserPolicy());
+        }
+
         private void ConfigureBusinessServices(IServiceCollection services)
         {
             services.AddScoped<IBlobService, DefaultBlobService>();
             services.AddRemoteFetchService();
+            services.AddScoped<IThumbnailCreationService, DefaultThumbnailCreationService>();
             services.AddThumbnailQueueService();
         }
 
-        private void ConfigureRepositories(IServiceCollection services)
+        private void ConfigureDataAccessObjects(IServiceCollection services)
         {
-            // TODO: Repository -> DataAccessObject
-            services.AddScoped<AccessTokenRepository>();
-            services.AddScoped<RemoteImageRepository>();
+            services.AddScoped<IAccessTokenDao, DefaultAccessTokenDao>();
+            services.AddScoped<IFetchAttemptDao, DefaultFetchAttemptDao>();
+            services.AddScoped<IRemoteImageDao, DefaultRemoteImageDao>();
         }
 
         private void ConfigureUseCases(IServiceCollection services)
@@ -92,17 +94,12 @@ namespace SogigiMind
 
         private void ConfigureBackgroundServices(IServiceCollection services)
         {
-            services.AddHostedService<ThumbnailBackgroundService<ThumbnailService2>>();
+            services.AddHostedService<ThumbnailBackgroundService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-
             app.UseSwagger();
             app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SogigiMind"));
 

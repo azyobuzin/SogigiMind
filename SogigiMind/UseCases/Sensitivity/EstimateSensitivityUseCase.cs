@@ -4,21 +4,21 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SogigiMind.Data;
+using SogigiMind.DataAccess;
 using SogigiMind.Infrastructures;
 using SogigiMind.Logics;
-using SogigiMind.Repositories;
 
 namespace SogigiMind.UseCases.Sensitivity
 {
     public class EstimateSensitivityUseCase
     {
         private readonly ApplicationDbContext _dbContext;
-        private readonly RemoteImageRepository _remoteImageRepository;
+        private readonly IRemoteImageDao _remoteImageDao;
 
-        public EstimateSensitivityUseCase(ApplicationDbContext dbContext, RemoteImageRepository remoteImageRepository)
+        public EstimateSensitivityUseCase(ApplicationDbContext dbContext, IRemoteImageDao remoteImageDao)
         {
             this._dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-            this._remoteImageRepository = remoteImageRepository ?? throw new ArgumentNullException(nameof(remoteImageRepository));
+            this._remoteImageDao = remoteImageDao ?? throw new ArgumentNullException(nameof(remoteImageDao));
         }
 
         public async Task<IReadOnlyList<EstimateSensitivityOutputItem>> ExecuteAsync(string acct, IReadOnlyList<EstimateSensitivityInputItem>? inputs)
@@ -33,7 +33,7 @@ namespace SogigiMind.UseCases.Sensitivity
             {
                 var url = g.Key;
                 var item = g.First().item;
-                await this._remoteImageRepository.UpdateAsync(url, false, item.IsSensitive, item.IsPublic).ConfigureAwait(false);
+                await this._remoteImageDao.UpdateAsync(url, false, item.IsSensitive, item.IsPublic).ConfigureAwait(false);
             }
 
             var results = new EstimateSensitivityOutputItem[inputs.Count];

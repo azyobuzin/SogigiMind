@@ -6,21 +6,20 @@ using Microsoft.EntityFrameworkCore;
 using SogigiMind.Data;
 using SogigiMind.Logics;
 
-namespace SogigiMind.Repositories
+namespace SogigiMind.DataAccess
 {
-    public class RemoteImageRepository
+    public class DefaultRemoteImageDao : IRemoteImageDao
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly ISystemClock _clock;
 
-        public RemoteImageRepository(ApplicationDbContext dbContext, ISystemClock clock)
+        public DefaultRemoteImageDao(ApplicationDbContext dbContext, ISystemClock clock)
         {
             this._dbContext = dbContext;
             this._clock = clock;
         }
 
-        /// <returns><see cref="RemoteImageData.Id"/></returns>
-        public async Task<long> UpdateAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic)
+        public async Task UpdateAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic)
         {
             UrlNormalizer.AssertNormalized(url);
             var now = this._clock.UtcNow.UtcDateTime;
@@ -46,8 +45,6 @@ namespace SogigiMind.Repositories
             {
                 await UpdateCoreAsync().ConfigureAwait(false);
             }
-
-            return remoteImageData.Id;
 
             async ValueTask UpdateCoreAsync()
             {

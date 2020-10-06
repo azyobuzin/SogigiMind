@@ -10,14 +10,14 @@ using Microsoft.EntityFrameworkCore;
 using SogigiMind.Data;
 using SogigiMind.Infrastructures;
 
-namespace SogigiMind.Repositories
+namespace SogigiMind.DataAccess
 {
-    public class AccessTokenRepository
+    public class DefaultAccessTokenDao : IAccessTokenDao
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly ISystemClock _clock;
 
-        public AccessTokenRepository(ApplicationDbContext dbContext, ISystemClock? clock)
+        public DefaultAccessTokenDao(ApplicationDbContext dbContext, ISystemClock? clock)
         {
             this._dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
             this._clock = clock ?? new SystemClock();

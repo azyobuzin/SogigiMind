@@ -1,18 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using CliWrap;
 using CliWrap.Buffered;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -23,128 +21,71 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SogigiMind.Infrastructures;
+using SogigiMind.Data;
+using SogigiMind.DataAccess;
 using SogigiMind.Logics;
-using SogigiMind.Models;
 using SogigiMind.Options;
-using SogigiMind.Repositories;
 
 namespace SogigiMind.Services
 {
-    public class ThumbnailService
+    public class DefaultThumbnailCreationService : IThumbnailCreationService
     {
-        private readonly IFetchStatusRepository _fetchStatusRepository;
-        private readonly IThumbnailRepository _thumbnailRepository;
+        private readonly IBlobService _blobService;
+        private readonly IFetchAttemptDao _fetchAttemptDao;
+        private readonly IRemoteFetchService _remoteFetchService;
+        private readonly ISystemClock _clock;
         private readonly IOptionsMonitor<ThumbnailOptions> _options;
         private readonly ILogger _logger;
-        private readonly Dictionary<string, Task<ThumbnailResult?>> _tasks = new Dictionary<string, Task<ThumbnailResult?>>();
-        private readonly HttpClient _httpClient;
 
         private static readonly TimeSpan s_ffmpegTimeout = TimeSpan.FromSeconds(10);
 
-        public ThumbnailService(
-            IFetchStatusRepository fetchStatusRepository,
-            IThumbnailRepository thumbnailRepository,
+        public DefaultThumbnailCreationService(
+            IBlobService blobService,
+            IFetchAttemptDao fetchAttemptDao,
+            IRemoteFetchService remoteFetchService,
+            ISystemClock? clock,
             IOptionsMonitor<ThumbnailOptions> options,
-            ILogger<ThumbnailService>? logger)
+            ILogger<DefaultThumbnailCreationService>? logger)
         {
-            this._fetchStatusRepository = fetchStatusRepository ?? throw new ArgumentNullException(nameof(fetchStatusRepository));
-            this._thumbnailRepository = thumbnailRepository ?? throw new ArgumentNullException(nameof(thumbnailRepository));
+            this._blobService = blobService ?? throw new ArgumentNullException(nameof(blobService));
+            this._fetchAttemptDao = fetchAttemptDao ?? throw new ArgumentNullException(nameof(fetchAttemptDao));
+            this._remoteFetchService = remoteFetchService ?? throw new ArgumentNullException(nameof(remoteFetchService));
+            this._clock = clock ?? new SystemClock();
             this._options = options ?? throw new ArgumentNullException(nameof(options));
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
-
-            var handler = new HttpClientHandler() { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 };
-            var proxy = options.CurrentValue.Proxy;
-            if (!string.IsNullOrEmpty(proxy)) handler.Proxy = new WebProxy(proxy);
-
-            this._httpClient = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(600),
-                DefaultRequestHeaders =
-                {
-                    Accept =
-                    {
-                        new MediaTypeWithQualityHeaderValue("image/*"),
-                        new MediaTypeWithQualityHeaderValue("video/*"),
-                    },
-                    UserAgent =
-                    {
-                        new ProductInfoHeaderValue("SogigiMind", typeof(ThumbnailService).Assembly.GetName().Version?.ToString() ?? "0.0.0.0")
-                    }
-                }
-            };
         }
 
-        public async Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
+        public async Task<IReadOnlyList<ThumbnailInfo>> CreateThumbnailAsync(string url, CancellationToken cancellationToken = default)
         {
-            url = UrlNormalizer.NormalizeUrl(url);
+            UrlNormalizer.AssertNormalized(url);
 
-            // 同じ URL に対して、このサーバーですでに処理を開始しているなら、それを待機する
-            Task<ThumbnailResult?>? task;
-            lock (this._tasks)
-            {
-                if (!this._tasks.TryGetValue(url, out task))
-                {
-                    task = Task.Run(() => this.GetOrCreateThumbnailCoreAsync(url));
-                    this._tasks[url] = task;
-                }
-            }
+            this._logger.LogInformation("Creating thumbnail for {Url}.", url);
 
-            var result = await task.ConfigureAwait(false);
+            var startTime = this._clock.UtcNow;
+            string? downloadPath = null; // TODO: delete in finally
 
             try
             {
-                await this._fetchStatusRepository
-                    .UpdateLeaningOptionsAsync(url, sensitive, canUseToTrain)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Failed to UpdateLearningOptions. ({Url})", url);
-            }
-
-            return result;
-        }
-
-        private async Task<ThumbnailResult?> GetOrCreateThumbnailCoreAsync(string url)
-        {
-            string? downloadPath = null;
-
-            try
-            {
+                long? contentLength;
                 string contentType;
-
-                // すでにあるかを確認
-                var fetchStatus = await this._fetchStatusRepository.FindByUrlAsync(url).ConfigureAwait(false);
-
-                if (fetchStatus?.ContentHash is { } contentHash && fetchStatus.ThumbnailInfo is { ContentType: var thumbnailContentType })
-                {
-                    var bytes = await this._thumbnailRepository.DownloadAsBytesAsync(contentHash).ConfigureAwait(false);
-                    if (bytes != null) return new ThumbnailResult(thumbnailContentType, bytes);
-                }
-
-                // InternalError を起こしていたら、改善する可能性は低いので、 10 分リトライ禁止
-                if (fetchStatus?.LastAttempt?.AddMinutes(10) <= DateTime.UtcNow) return null;
-
-                this._logger.LogInformation("Creating thumbnail for {Url}.", url);
 
                 try
                 {
-                    using var res = await this._httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                    using var res = await this._remoteFetchService.GetAsync(url).ConfigureAwait(false);
 
                     if (!res.IsSuccessStatusCode)
                     {
                         this._logger.LogWarning("Got response with {StatusCode} from {Url}.", (int)res.StatusCode, url);
-                        await UpdateStatusAsync(FetchStatusKind.RemoteError).ConfigureAwait(false);
-                        return null;
+                        await SaveErrorStatusAsync(FetchAttemptStatus.RemoteError).ConfigureAwait(false);
+                        return Array.Empty<ThumbnailInfo>();
                     }
 
                     // レスポンスを読むまでもなく、画像でも動画でもなさそうなデータなら、読まない
-                    if (res.Content == null || res.Content.Headers.ContentLength == 0
+                    if (res.Content == null || (contentLength = res.Content.Headers.ContentLength) == 0
                         || !IsAcceptableContentType(contentType = res.Content.Headers.ContentType.MediaType))
                     {
-                        await UpdateStatusAsync(FetchStatusKind.InternalError).ConfigureAwait(false);
-                        return null;
+                        await SaveErrorStatusAsync(FetchAttemptStatus.InternalError).ConfigureAwait(false);
+                        return Array.Empty<ThumbnailInfo>();
                     }
 
                     using var srcStream = await res.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -159,37 +100,31 @@ namespace SogigiMind.Services
                 {
                     var isRemoteError = ex is OperationCanceledException || ex is HttpRequestException || ex is IOException;
                     this._logger.LogWarning(ex, "Failed to fetch {Url}.", url);
-                    await UpdateStatusAsync(isRemoteError ? FetchStatusKind.RemoteError : FetchStatusKind.InternalError).ConfigureAwait(false);
-                    return null;
+                    await SaveErrorStatusAsync(isRemoteError ? FetchAttemptStatus.RemoteError : FetchAttemptStatus.InternalError).ConfigureAwait(false);
+                    return Array.Empty<ThumbnailInfo>();
                 }
 
                 InternalThumbnailResult? internalResult;
 
                 try
                 {
-                    var hashTask = Task.Run(() => ComputeFileHash(downloadPath)).TouchException();
-
                     // 画像として処理できるか試す
                     internalResult = await this.TryCreateThumbnailAsync(downloadPath, url).ConfigureAwait(false);
 
                     // ImageSharp で処理できなかったら FFmpeg に入力してみる
                     internalResult ??= await this.TryCreateThumbnailForVideoAsync(downloadPath, url, contentType).ConfigureAwait(false);
-
-                    contentHash = await hashTask.ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     this._logger.LogError(ex, "Failed to create thumbnail. ({Url})", url);
 
                     // エラーを起こしたら InternalError 扱い
-                    await UpdateStatusAsync(FetchStatusKind.InternalError).ConfigureAwait(false);
+                    await SaveErrorStatusAsync(FetchAttemptStatus.InternalError).ConfigureAwait(false);
 
-                    return null;
+                    return Array.Empty<ThumbnailInfo>();
                 }
 
-                var result = internalResult != null
-                    ? new ThumbnailResult(internalResult.ThumbnailContentType, internalResult.Thumbnail)
-                    : null;
+                var result = Array.Empty<ThumbnailInfo>();
 
                 try
                 {
@@ -197,26 +132,33 @@ namespace SogigiMind.Services
 
                     if (internalResult != null)
                     {
-                        await this._thumbnailRepository
-                            .UploadAsync(contentHash, internalResult.Thumbnail, url, internalResult.ThumbnailContentType)
-                            .ConfigureAwait(false);
+                        string etag;
+                        using (var md5 = MD5.Create())
+                            etag = string.Concat(md5.ComputeHash(internalResult.Thumbnail).Select(x => x.ToString("x2")));
+                        var uploadResult = await this._blobService.UploadAsync(
+                            new UploadingBlobInfo(internalResult.ThumbnailContentType, etag, this._clock.UtcNow),
+                            new MemoryStream(internalResult.Thumbnail, 0, internalResult.Thumbnail.Length, false, true)
+                        ).ConfigureAwait(false);
 
-                        thumbnailInfo = new ThumbnailInfo()
-                        {
-                            ContentType = internalResult.ThumbnailContentType,
-                            Width = internalResult.ThumbnailSize.Width,
-                            Height = internalResult.ThumbnailSize.Height,
-                            IsAnimation = internalResult.IsAnimation,
-                        };
+                        thumbnailInfo = new ThumbnailInfo(
+                            uploadResult.BlobId,
+                            internalResult.ThumbnailContentType,
+                            internalResult.Thumbnail.Length,
+                            internalResult.ThumbnailSize.Width,
+                            internalResult.ThumbnailSize.Height,
+                            internalResult.IsAnimation);
                     }
 
-                    await this._fetchStatusRepository.UpdateThumbnailInfoAsync(
+                    if (thumbnailInfo != null)
+                        result = new[] { thumbnailInfo };
+
+                    await this._fetchAttemptDao.InsertFetchAttemptAsync(
                         url,
-                        internalResult != null ? FetchStatusKind.Success : FetchStatusKind.InternalError,
-                        internalResult?.SourceContentType ?? contentType,
-                        contentHash,
-                        thumbnailInfo,
-                        DateTimeOffset.Now).ConfigureAwait(false);
+                        internalResult != null ? FetchAttemptStatus.Success : FetchAttemptStatus.InternalError,
+                        contentLength,
+                        internalResult?.SourceContentType,
+                        startTime,
+                        result).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -224,20 +166,6 @@ namespace SogigiMind.Services
                 }
 
                 return result;
-
-                async Task UpdateStatusAsync(FetchStatusKind status)
-                {
-                    try
-                    {
-                        await this._fetchStatusRepository
-                            .UpdateStatusAsync(url, status, DateTimeOffset.Now)
-                            .ConfigureAwait(false);
-                    }
-                    catch (Exception ex)
-                    {
-                        this._logger.LogError(ex, "Failed to write error status. ({Url})", url);
-                    }
-                }
             }
             finally
             {
@@ -250,12 +178,14 @@ namespace SogigiMind.Services
                     }
                     catch (Exception ex)
                     {
-                        this._logger.LogWarning(ex, "Failed to delete temporary file at " + nameof(GetOrCreateThumbnailCoreAsync) + ".");
+                        this._logger.LogWarning(ex, "Failed to delete temporary file at " + nameof(CreateThumbnailAsync) + ".");
                     }
                 }
+            }
 
-                lock (this._tasks)
-                    this._tasks.Remove(url);
+            Task SaveErrorStatusAsync(FetchAttemptStatus status)
+            {
+                return this._fetchAttemptDao.InsertFetchAttemptAsync(url, status, null, null, startTime, Array.Empty<ThumbnailInfo>());
             }
         }
 
@@ -471,14 +401,6 @@ namespace SogigiMind.Services
             }
         }
 
-        private static string ComputeFileHash(string path)
-        {
-            using var hash = SHA256.Create();
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var bytes = hash.ComputeHash(stream);
-            return string.Concat(bytes.Select(x => x.ToString("x2", CultureInfo.InvariantCulture)));
-        }
-
         private class InternalThumbnailResult
         {
             public string SourceContentType { get; set; }
@@ -500,18 +422,6 @@ namespace SogigiMind.Services
                 this.IsAnimation = isAnimation;
                 this.Thumbnail = thumbnail;
             }
-        }
-    }
-
-    public class ThumbnailResult
-    {
-        public string ContentType { get; }
-        public byte[] Content { get; }
-
-        public ThumbnailResult(string contentType, byte[] content)
-        {
-            this.ContentType = contentType ?? throw new ArgumentNullException(nameof(content));
-            this.Content = content ?? throw new ArgumentNullException(nameof(content));
         }
     }
 }

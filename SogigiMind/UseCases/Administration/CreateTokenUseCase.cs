@@ -8,22 +8,22 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SogigiMind.Authentication;
+using SogigiMind.DataAccess;
 using SogigiMind.Infrastructures;
 using SogigiMind.Logics;
-using SogigiMind.Repositories;
 
 namespace SogigiMind.UseCases.Administration
 {
     public class CreateTokenUseCase
     {
-        private readonly AccessTokenRepository _accessTokenRepository;
+        private readonly IAccessTokenDao _accessTokenDao;
         private readonly ILogger _logger;
 
         public CreateTokenUseCase(
-            AccessTokenRepository accessTokenRepository,
+            IAccessTokenDao accessTokenDao,
             ILogger<CreateTokenUseCase>? logger)
         {
-            this._accessTokenRepository = accessTokenRepository ?? throw new ArgumentNullException(nameof(accessTokenRepository));
+            this._accessTokenDao = accessTokenDao ?? throw new ArgumentNullException(nameof(accessTokenDao));
             this._logger = (ILogger?)logger ?? NullLogger.Instance;
         }
 
@@ -55,7 +55,7 @@ namespace SogigiMind.UseCases.Administration
 
             var token = AccessTokenGenerator.Generate("t");
 
-            await this._accessTokenRepository.InsertIdenityAsync(token, identity).ConfigureAwait(false);
+            await this._accessTokenDao.InsertIdenityAsync(token, identity).ConfigureAwait(false);
 
             this._logger.LogInformation("Created token for {Roles}", rolesStr);
 
