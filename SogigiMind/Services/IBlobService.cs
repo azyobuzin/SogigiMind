@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using SogigiMind.Infrastructures;
 
 namespace SogigiMind.Services
 {
@@ -15,6 +16,8 @@ namespace SogigiMind.Services
 
     public class UploadedBlobInfo
     {
+        public long BlobId { get; }
+
         public long ContentLength { get; }
 
         public string? ContentType { get; }
@@ -23,8 +26,9 @@ namespace SogigiMind.Services
 
         public DateTimeOffset? LastModified { get; }
 
-        public UploadedBlobInfo(long contentLength, string? contentType, string? etag, DateTimeOffset? lastModified)
+        public UploadedBlobInfo(long blobId, long contentLength, string? contentType, string? etag, DateTimeOffset? lastModified)
         {
+            this.BlobId = blobId;
             this.ContentLength = contentLength;
             this.ContentType = contentType;
             this.Etag = etag;

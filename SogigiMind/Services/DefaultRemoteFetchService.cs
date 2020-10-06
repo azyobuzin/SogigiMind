@@ -29,8 +29,7 @@ namespace SogigiMind.Services
 
 namespace Microsoft.Extensions.DependencyInjection
 {
-
-    public static class RemoteFetchServiceExtensions
+    public static partial class SogigiMindServiceCollectionExtensions
     {
         public static IServiceCollection AddRemoteFetchService(this IServiceCollection services)
         {

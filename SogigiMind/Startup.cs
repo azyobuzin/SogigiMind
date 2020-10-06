@@ -42,6 +42,13 @@ namespace SogigiMind
                 ServiceLifetime.Singleton
             );
 
+            services.AddDbConnectionProvider(serviceProvider =>
+            {
+                // リクエストのスコープに限らず生きる ApplicationDbContext を作成する
+                var options = serviceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>();
+                return new ApplicationDbContext(options);
+            });
+
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo() { Title = "SogigiMind", Version = AppVersion.InformationalVersion });

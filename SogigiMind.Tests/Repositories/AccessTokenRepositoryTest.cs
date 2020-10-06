@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ChainingAssertion;
 using Microsoft.EntityFrameworkCore;
 using SogigiMind.Authentication;
+using SogigiMind.Infrastructures;
 using SogigiMind.TestInfrastructures;
 using Xunit;
 
@@ -17,9 +18,11 @@ namespace SogigiMind.Repositories
         [Fact]
         public async Task TestInsertAndGet()
         {
-            using var dbContext = ApplicationDbContextFactory.CreateInMemory();
             var clock = new ConstantClock(new DateTimeOffset(2020, 10, 1, 0, 0, 0, TimeSpan.Zero));
-            var repository = new AccessTokenRepository(dbContext, clock);
+            var dbConnectionProvider = new InMemoryDbContextProvider();
+            var repository = new AccessTokenRepository(dbConnectionProvider, clock);
+            await using var unitOfDbConnection = new UnitOfDbConnection();
+            var dbContext = dbConnectionProvider.GetConnection(unitOfDbConnection);
 
             var token = "test.ecdcf6a6f05a4456b9b079fe99b8e7e5";
             var name = "Name";
@@ -32,12 +35,12 @@ namespace SogigiMind.Repositories
             var identity = new GenericIdentity(name);
             identity.AddClaims(claims.Select(x => new Claim(x.Key, x.Value)));
 
-            await repository.InsertIdenityAsync(token, identity);
+            await repository.InsertIdenityAsync(token, identity, unitOfDbConnection);
 
             var insertedData = await dbContext.AccessTokens.SingleAsync();
             insertedData.InsertedAt.Is(clock.UtcNow.UtcDateTime);
 
-            var restoredIdentity = await repository.GetIdentityByTokenAsync(token);
+            var restoredIdentity = await repository.GetIdentityByTokenAsync(token, unitOfDbConnection);
             restoredIdentity.IsNotNull();
             restoredIdentity!.Name.Is(name);
 

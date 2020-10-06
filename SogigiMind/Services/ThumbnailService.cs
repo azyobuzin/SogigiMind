@@ -77,8 +77,6 @@ namespace SogigiMind.Services
 
         public async Task<ThumbnailResult?> GetOrCreateThumbnailAsync(string url, bool? sensitive, bool? canUseToTrain)
         {
-            if (string.IsNullOrEmpty(url)) throw new ArgumentNullException(nameof(url));
-
             url = UrlNormalizer.NormalizeUrl(url);
 
             // 同じ URL に対して、このサーバーですでに処理を開始しているなら、それを待機する
@@ -339,7 +337,7 @@ namespace SogigiMind.Services
                 image.Metadata.GetGifMetadata()?.Comments?.Clear();
 
                 var jpegMetadata = image.Metadata.GetJpegMetadata();
-                if (jpegMetadata.Quality > 75) jpegMetadata.Quality = 75;
+                if (jpegMetadata.Quality > 80) jpegMetadata.Quality = 80;
 
                 isAnimation = image.Frames.Count > 1;
 

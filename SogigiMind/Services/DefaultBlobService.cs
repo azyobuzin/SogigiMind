@@ -22,7 +22,7 @@ namespace SogigiMind.Services
             return await this._dbContext.Blobs
                 .AsNoTracking()
                 .Where(x => x.Id == blobId)
-                .Select(x => new UploadedBlobInfo(x.ContentLength, x.ContentType, x.Etag, x.LastModified))
+                .Select(x => new UploadedBlobInfo(x.Id, x.ContentLength, x.ContentType, x.Etag, x.LastModified))
                 .SingleOrDefaultAsync()
                 .ConfigureAwait(false)
                 ?? throw new ArgumentException($"blobId {blobId} is not found.");

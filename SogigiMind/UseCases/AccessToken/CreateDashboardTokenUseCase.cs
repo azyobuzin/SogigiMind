@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SogigiMind.Authentication;
+using SogigiMind.Infrastructures;
 using SogigiMind.Logics;
 using SogigiMind.Options;
 using SogigiMind.Repositories;
@@ -55,7 +56,9 @@ namespace SogigiMind.UseCases.AccessToken
 
             var token = AccessTokenGenerator.Generate("dashboard");
 
-            await this._accessTokenRepository.InsertIdenityAsync(token, identity).ConfigureAwait(false);
+            var unitOfDbConnection = new UnitOfDbConnection();
+            await using (unitOfDbConnection.ConfigureAwait(false))
+                await this._accessTokenRepository.InsertIdenityAsync(token, identity, unitOfDbConnection).ConfigureAwait(false);
 
             this._logger.LogInformation("Dashboard login success");
 

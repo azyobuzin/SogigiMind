@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using SogigiMind.Infrastructures;
 using SogigiMind.Repositories;
 
 namespace SogigiMind.Authentication
@@ -36,7 +37,11 @@ namespace SogigiMind.Authentication
                 return AuthenticateResult.NoResult();
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
-            var identity = await this._accessTokenService.GetIdentityByTokenAsync(token).ConfigureAwait(false);
+
+            ClaimsIdentity? identity;
+            var unitOfDbConnection = new UnitOfDbConnection();
+            await using (unitOfDbConnection.ConfigureAwait(false))
+                identity = await this._accessTokenService.GetIdentityByTokenAsync(token, unitOfDbConnection).ConfigureAwait(false);
 
             if (identity == null) return AuthenticateResult.Fail("Invalid token");
 
