@@ -37,11 +37,7 @@ namespace SogigiMind.Authentication
                 return AuthenticateResult.NoResult();
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
-
-            ClaimsIdentity? identity;
-            var unitOfDbConnection = new UnitOfDbConnection();
-            await using (unitOfDbConnection.ConfigureAwait(false))
-                identity = await this._accessTokenService.GetIdentityByTokenAsync(token, unitOfDbConnection).ConfigureAwait(false);
+            var identity = await this._accessTokenService.GetIdentityByTokenAsync(token).ConfigureAwait(false);
 
             if (identity == null) return AuthenticateResult.Fail("Invalid token");
 

@@ -19,5 +19,8 @@ namespace SogigiMind.Options
         public int ThumbnailLongSide { get; set; } = 800;
 
         public string? FFmpegPath { get; set; } = "ffmpeg";
+
+        /// <summary>並行してサムネイルを作成する最大数</summary>
+        public int WorkerCount { get; set; } = 10;
     }
 }

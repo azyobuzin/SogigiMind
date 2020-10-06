@@ -55,9 +55,7 @@ namespace SogigiMind.UseCases.Administration
 
             var token = AccessTokenGenerator.Generate("t");
 
-            var unitOfDbConnection = new UnitOfDbConnection();
-            await using (unitOfDbConnection.ConfigureAwait(false))
-                await this._accessTokenRepository.InsertIdenityAsync(token, identity, unitOfDbConnection).ConfigureAwait(false);
+            await this._accessTokenRepository.InsertIdenityAsync(token, identity).ConfigureAwait(false);
 
             this._logger.LogInformation("Created token for {Roles}", rolesStr);
 

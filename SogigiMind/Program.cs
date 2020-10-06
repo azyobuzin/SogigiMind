@@ -14,8 +14,8 @@ namespace SogigiMind
         {
             var host = CreateHostBuilder(args).Build();
 
-            var config = host.Services.GetService<IConfiguration>();
-            if (config?.GetValue<bool>("SogigiMind:Migrate") == true)
+            var config = host.Services.GetRequiredService<IConfiguration>();
+            if (config.GetValue<bool>("SogigiMind:Migrate") == true)
             {
                 using var scope = host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

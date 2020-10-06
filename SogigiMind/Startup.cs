@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using SogigiMind.Authentication;
+using SogigiMind.BackgroundServices;
 using SogigiMind.Data;
 using SogigiMind.Logics;
 using SogigiMind.Options;
@@ -38,16 +39,9 @@ namespace SogigiMind
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(this.Configuration.GetConnectionString("Default"))
                     .UseSnakeCaseNamingConvention(),
-                ServiceLifetime.Transient,
+                ServiceLifetime.Scoped,
                 ServiceLifetime.Singleton
             );
-
-            services.AddDbConnectionProvider(serviceProvider =>
-            {
-                // リクエストのスコープに限らず生きる ApplicationDbContext を作成する
-                var options = serviceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>();
-                return new ApplicationDbContext(options);
-            });
 
             services.AddSwaggerGen(c =>
             {
@@ -60,6 +54,7 @@ namespace SogigiMind
             this.ConfigureBusinessServices(services);
             this.ConfigureRepositories(services);
             this.ConfigureUseCases(services);
+            this.ConfigureBackgroundServices(services);
         }
 
         private void ConfigureOptions(IServiceCollection services)
@@ -74,17 +69,16 @@ namespace SogigiMind
 
         private void ConfigureBusinessServices(IServiceCollection services)
         {
-            services.AddSingleton<IBlobServiceFactory, DefaultBlobServiceFactory>();
-            services.AddTransient(serviceProvider => serviceProvider
-                .GetRequiredService<IBlobServiceFactory>()
-                .CreateBlobService(serviceProvider.GetService<ApplicationDbContext>()));
+            services.AddScoped<IBlobService, DefaultBlobService>();
             services.AddRemoteFetchService();
+            services.AddThumbnailQueueService();
         }
 
         private void ConfigureRepositories(IServiceCollection services)
         {
-            services.AddTransient<AccessTokenRepository>();
-            services.AddTransient<RemoteImageRepository>();
+            // TODO: Repository -> DataAccessObject
+            services.AddScoped<AccessTokenRepository>();
+            services.AddScoped<RemoteImageRepository>();
         }
 
         private void ConfigureUseCases(IServiceCollection services)
@@ -94,6 +88,11 @@ namespace SogigiMind
             services.AddTransient<UseCases.Sensitivity.DeletePersonalSensitivitiesUseCase>();
             services.AddTransient<UseCases.Sensitivity.EstimateSensitivityUseCase>();
             services.AddTransient<UseCases.Sensitivity.SetSensitivityUseCase>();
+        }
+
+        private void ConfigureBackgroundServices(IServiceCollection services)
+        {
+            services.AddHostedService<ThumbnailBackgroundService<ThumbnailService2>>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

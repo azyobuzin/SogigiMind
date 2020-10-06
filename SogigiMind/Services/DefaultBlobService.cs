@@ -7,7 +7,6 @@ using SogigiMind.Data;
 
 namespace SogigiMind.Services
 {
-    // TODO: IBlobServiceFactory いる？, BlobRepository のほうがいいのでは
     public class DefaultBlobService : IBlobService
     {
         private readonly ApplicationDbContext _dbContext;

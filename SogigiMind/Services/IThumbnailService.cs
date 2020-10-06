@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using SogigiMind.Infrastructures;
 
 namespace SogigiMind.Services
 {
     public interface IThumbnailService
     {
-        Task<IReadOnlyList<ThumbnailInfo>> GetOrCreateThumbnailAsync(string url, UnitOfDbConnection unitOfDbConnection);
+        Task<IReadOnlyList<ThumbnailInfo>> CreateThumbnailAsync(string url, CancellationToken cancellationToken = default);
     }
 
     public class ThumbnailInfo
