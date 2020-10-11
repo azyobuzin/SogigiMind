@@ -62,7 +62,7 @@ namespace SogigiMind.Services
             this._logger.LogInformation("Creating thumbnail for {Url}.", url);
 
             var startTime = this._clock.UtcNow;
-            string? downloadPath = null; // TODO: delete in finally
+            string? downloadPath = null;
 
             try
             {

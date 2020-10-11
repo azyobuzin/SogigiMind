@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -98,9 +99,9 @@ namespace SogigiMind.BackgroundServices
                         sendTask.Result == false)
 #pragma warning restore VSTHRD103
                     {
-                        // これ以上入力できない状態にある。おそらく例外が発生しているので
-                        // ループ後の await で例外がハンドルされる。
-                        break;
+                        // これ以上入力できない状態にある。入力を停止して、さらにループを回す。
+                        // キューにあるものがすべて _workingItems に入ったら例外処理に移る。
+                        this._queueConsumer.Stop();
                     }
                 }
 
@@ -231,7 +232,10 @@ namespace SogigiMind.BackgroundServices
             // 完了を通知して _workingItems から削除する
             List<TaskCompletionSource<IReadOnlyList<ThumbnailInfo>>>? tasks;
             lock (this._workingItems)
-                this._workingItems.Remove(url, out tasks);
+            {
+                var removed = this._workingItems.Remove(url, out tasks);
+                Debug.Assert(removed);
+            }
 
             if (tasks != null)
             {
