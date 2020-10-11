@@ -19,7 +19,7 @@ namespace SogigiMind.DataAccess
             this._clock = clock;
         }
 
-        public async Task UpdateAsync(string url, bool markAsKnown, bool? isSensitive, bool? isPublic)
+        public async Task UpdateAsync(string url, bool? isSensitive, bool? isPublic)
         {
             UrlNormalizer.AssertNormalized(url);
             var now = this._clock.UtcNow.UtcDateTime;
@@ -31,7 +31,6 @@ namespace SogigiMind.DataAccess
                 remoteImageData = new RemoteImageData()
                 {
                     Url = url,
-                    IsKnown = markAsKnown,
                     IsSensitive = isSensitive,
                     IsPublic = isPublic,
                     InsertedAt = now,
@@ -51,11 +50,6 @@ namespace SogigiMind.DataAccess
                 while (true)
                 {
                     var changed = false;
-                    if (markAsKnown && !remoteImageData.IsKnown)
-                    {
-                        remoteImageData.IsKnown = true;
-                        changed = true;
-                    }
                     if (isSensitive != null && remoteImageData.IsSensitive != isSensitive.Value)
                     {
                         remoteImageData.IsSensitive = isSensitive.Value;

@@ -20,6 +20,7 @@ namespace SogigiMind.UseCases.Thumbnail
         {
             var url = UrlNormalizer.NormalizeUrl(Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(urlBase64)));
             // TODO: options でキーを設定できるようにする
+            throw new NotImplementedException();
         }
     }
 

@@ -33,7 +33,6 @@ namespace SogigiMind.UseCases.Sensitivity
                 endUserData = new EndUserData()
                 {
                     Acct = acct,
-                    Settings = "{}",
                     InsertedAt = now,
                     UpdatedAt = now,
                 };

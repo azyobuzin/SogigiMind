@@ -1,30 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SogigiMind.Authentication;
 using SogigiMind.Infrastructures;
 using SogigiMind.UseCases.Sensitivity;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
-    [ApiController, Route("api/sensitivity"), Authorize(Policy = EndUserAuthorizationPolicy.PolicyName)]
+    [ApiController, Route("api/sensitivity")]
     public class SensitivityController : ControllerBase
     {
         /// <summary>
         /// ユーザーにとってセンシティブな画像かを記録します。
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> PostSensitivity([FromBody] PostSensitivityRequest request, [FromServices] SetSensitivityUseCase useCase)
+        public async Task<IActionResult> PostSensitivity(
+            [FromBody, Required] PostSensitivityRequest request,
+            [FromServices] SetSensitivityUseCase useCase)
         {
-            // TODO: acct の取得を共通化して、引数から取れるようにしたい
-            var acct = this.HttpContext.GetAcct();
-            if (string.IsNullOrEmpty(acct)) return this.Forbid();
-
-            await useCase.ExecuteAsync(acct, request.Url, request.IsSensitive).ConfigureAwait(false);
+            await useCase.ExecuteAsync(request.Acct, request.Url, request.IsSensitive).ConfigureAwait(false);
             return this.Ok();
         }
 
@@ -34,14 +29,11 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <returns>戻り値は <paramref name="request"/> と同じ要素数、順番です。</returns>
         [HttpPost("estimate")]
         public async Task<ActionResult<IReadOnlyList<EstimateSensitivityResponseItem>>> EstimateSensitivity(
-            [FromBody] IEnumerable<EstimateSensitivityRequestItem>? request,
+            [FromBody, Required] EstimateSensitivityRequest request,
             [FromServices] EstimateSensitivityUseCase useCase)
         {
-            var acct = this.HttpContext.GetAcct();
-            if (string.IsNullOrEmpty(acct)) return this.Forbid();
-
-            var inputs = request?.Select(x => new EstimateSensitivityInputItem(x.Url, x.IsSensitive, x.IsPublic)).ToArray();
-            var outputs = await useCase.ExecuteAsync(acct, inputs).ConfigureAwait(false);
+            var inputs = request.Items?.Select(x => new EstimateSensitivityInputItem(x.Url, x.IsSensitive, x.IsPublic)).ToArray();
+            var outputs = await useCase.ExecuteAsync(request.Acct, inputs).ConfigureAwait(false);
             return outputs.Select(x => new EstimateSensitivityResponseItem()
             {
                 Url = x.Url,
@@ -50,28 +42,15 @@ namespace SogigiMind.Controllers.ApiControllers
             }).ToArray();
         }
 
-        [HttpGet("settings")]
-        public IActionResult GetSettings()
-        {
-            throw new NotImplementedException();
-        }
-
-        [HttpPost("settings")]
-        public IActionResult PostSettings()
-        {
-            throw new NotImplementedException();
-        }
-
         /// <summary>
         /// ユーザーの情報を削除します。
         /// </summary>
         [HttpPost("clear")]
-        public async Task<IActionResult> Clear([FromServices] DeletePersonalSensitivitiesUseCase useCase)
+        public async Task<IActionResult> ClearPersonalSensitivities(
+            [FromBody, Required] ClearPersonalSensitivitiesRequest request,
+            [FromServices] DeletePersonalSensitivitiesUseCase useCase)
         {
-            var acct = this.HttpContext.GetAcct();
-            if (string.IsNullOrEmpty(acct)) return this.Forbid();
-
-            await useCase.ExecuteAsync(acct).ConfigureAwait(false);
+            await useCase.ExecuteAsync(request.Acct).ConfigureAwait(false);
             return this.Ok();
         }
 
@@ -80,10 +59,22 @@ namespace SogigiMind.Controllers.ApiControllers
         public class PostSensitivityRequest
         {
             [Required]
+            public string Acct { get; set; }
+
+            [Required]
             public string Url { get; set; }
 
             [Required]
             public bool IsSensitive { get; set; }
+        }
+
+        public class EstimateSensitivityRequest
+        {
+            [Required]
+            public string Acct { get; set; }
+
+            [Required]
+            public IReadOnlyList<EstimateSensitivityRequestItem> Items { get; set; }
         }
 
         public class EstimateSensitivityRequestItem
@@ -116,6 +107,12 @@ namespace SogigiMind.Controllers.ApiControllers
             /// ユーザーが設定したセンシティビティ。ユーザーが設定していない場合は <see langword="null"/>。
             /// </summary>
             public bool? PersonalSensitivity { get; set; }
+        }
+
+        public class ClearPersonalSensitivitiesRequest
+        {
+            [Required]
+            public string Acct { get; set; }
         }
     }
 }

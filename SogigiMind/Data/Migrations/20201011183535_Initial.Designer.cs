@@ -10,7 +10,7 @@ using SogigiMind.Data;
 namespace SogigiMind.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20201002152910_Initial")]
+    [Migration("20201011183535_Initial")]
     partial class Initial
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -20,64 +20,6 @@ namespace SogigiMind.Data.Migrations
                 .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn)
                 .HasAnnotation("ProductVersion", "3.1.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
-
-            modelBuilder.Entity("SogigiMind.Data.AccessTokenClaimData", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnName("id")
-                        .HasColumnType("bigint")
-                        .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-
-                    b.Property<long>("AccessTokenId")
-                        .HasColumnName("access_token_id")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ClaimType")
-                        .IsRequired()
-                        .HasColumnName("claim_type")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ClaimValue")
-                        .IsRequired()
-                        .HasColumnName("claim_value")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id")
-                        .HasName("pk_access_token_claims");
-
-                    b.HasIndex("AccessTokenId")
-                        .HasName("ix_access_token_claims_access_token_id");
-
-                    b.ToTable("access_token_claims");
-                });
-
-            modelBuilder.Entity("SogigiMind.Data.AccessTokenData", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnName("id")
-                        .HasColumnType("bigint")
-                        .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-
-                    b.Property<DateTime>("InsertedAt")
-                        .HasColumnName("inserted_at")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<byte[]>("TokenHash")
-                        .IsRequired()
-                        .HasColumnName("token_hash")
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id")
-                        .HasName("pk_access_tokens");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique()
-                        .HasName("ix_access_tokens_token_hash");
-
-                    b.ToTable("access_tokens");
-                });
 
             modelBuilder.Entity("SogigiMind.Data.BlobData", b =>
                 {
@@ -129,11 +71,6 @@ namespace SogigiMind.Data.Migrations
                     b.Property<DateTime>("InsertedAt")
                         .HasColumnName("inserted_at")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Settings")
-                        .IsRequired()
-                        .HasColumnName("settings")
-                        .HasColumnType("jsonb");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnName("updated_at")
@@ -279,10 +216,6 @@ namespace SogigiMind.Data.Migrations
                         .HasColumnName("inserted_at")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<bool>("IsKnown")
-                        .HasColumnName("is_known")
-                        .HasColumnType("boolean");
-
                     b.Property<bool?>("IsPublic")
                         .HasColumnName("is_public")
                         .HasColumnType("boolean");
@@ -359,16 +292,6 @@ namespace SogigiMind.Data.Migrations
                         .HasName("ix_thumbnails_fetch_attempt_id");
 
                     b.ToTable("thumbnails");
-                });
-
-            modelBuilder.Entity("SogigiMind.Data.AccessTokenClaimData", b =>
-                {
-                    b.HasOne("SogigiMind.Data.AccessTokenData", "AccessToken")
-                        .WithMany("Claims")
-                        .HasForeignKey("AccessTokenId")
-                        .HasConstraintName("fk_access_token_claims_access_tokens_access_token_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("SogigiMind.Data.EstimationLogData", b =>

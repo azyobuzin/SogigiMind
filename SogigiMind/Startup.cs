@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
-using SogigiMind.Authentication;
 using SogigiMind.BackgroundServices;
 using SogigiMind.Data;
 using SogigiMind.DataAccess;
@@ -39,11 +38,11 @@ namespace SogigiMind
             {
                 c.SwaggerDoc("v1", new OpenApiInfo() { Title = "SogigiMind", Version = AppVersion.InformationalVersion });
                 c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "SogigiMind.xml"));
-                c.AddSogigiMindAuthenticationOperationFilter();
             });
 
+            services.AddSingleton<ISystemClock, SystemClock>();
+
             this.ConfigureOptions(services);
-            this.ConfigureAuthentication(services);
             this.ConfigureBusinessServices(services);
             this.ConfigureDataAccessObjects(services);
             this.ConfigureUseCases(services);
@@ -52,20 +51,9 @@ namespace SogigiMind
 
         private void ConfigureOptions(IServiceCollection services)
         {
-            services.AddOptions<DashboardLoginOptions>()
-                .Bind(this.Configuration.GetSection("SogigiMind:DashboardLogin"));
-
             services.AddOptions<ThumbnailOptions>()
                 .Bind(this.Configuration.GetSection("SogigiMind:Thumbnail"))
                 .ValidateDataAnnotations();
-        }
-
-        private void ConfigureAuthentication(IServiceCollection services)
-        {
-            services.AddAuthentication(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme)
-                .AddScheme<AuthenticationSchemeOptions, AccessTokenAuthenticationHandler>(AccessTokenAuthenticationHandler.DefaultAuthenticationScheme, null);
-
-            services.AddAuthorization(options => options.AddEndUserPolicy());
         }
 
         private void ConfigureBusinessServices(IServiceCollection services)
@@ -78,15 +66,12 @@ namespace SogigiMind
 
         private void ConfigureDataAccessObjects(IServiceCollection services)
         {
-            services.AddScoped<IAccessTokenDao, DefaultAccessTokenDao>();
             services.AddScoped<IFetchAttemptDao, DefaultFetchAttemptDao>();
             services.AddScoped<IRemoteImageDao, DefaultRemoteImageDao>();
         }
 
         private void ConfigureUseCases(IServiceCollection services)
         {
-            services.AddTransient<UseCases.AccessToken.CreateDashboardTokenUseCase>();
-            services.AddTransient<UseCases.Administration.CreateTokenUseCase>();
             services.AddTransient<UseCases.Sensitivity.DeletePersonalSensitivitiesUseCase>();
             services.AddTransient<UseCases.Sensitivity.EstimateSensitivityUseCase>();
             services.AddTransient<UseCases.Sensitivity.SetSensitivityUseCase>();

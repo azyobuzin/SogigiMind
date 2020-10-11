@@ -33,7 +33,7 @@ namespace SogigiMind.UseCases.Sensitivity
             {
                 var url = g.Key;
                 var item = g.First().item;
-                await this._remoteImageDao.UpdateAsync(url, false, item.IsSensitive, item.IsPublic).ConfigureAwait(false);
+                await this._remoteImageDao.UpdateAsync(url, item.IsSensitive, item.IsPublic).ConfigureAwait(false);
             }
 
             var results = new EstimateSensitivityOutputItem[inputs.Count];

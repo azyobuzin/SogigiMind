@@ -1,15 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SogigiMind.Authentication;
 
 namespace SogigiMind.Controllers.ApiControllers
 {
     [ApiController, Route("api/thumbnail")]
     public class ThumbnailController : ControllerBase
     {
+        /// <summary>
+        /// Creates a thumbnail of the specified URL.
+        /// </summary>
+        /// <response code="200">Returns the thumbnail image.</response>
+        /// <response code="302">Failed to create a thumbnail or the created thumbnail is bigger than the original.</response>
+        [HttpHead, HttpGet]
+        public IActionResult Thumbnail([Required] string url)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Creates a thumbnail of the specified URL.
         /// </summary>
@@ -22,8 +31,8 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <response code="200">Returns the thumbnail image.</response>
         /// <response code="302">Failed to create a thumbnail or the created thumbnail is bigger than the original.</response>
         /// <response code="403"><paramref name="sig"/> is invalid.</response>
-        [HttpHead, HttpGet]
-        public IActionResult Thumbnail([Required] string url, string? sig)
+        [HttpHead, HttpGet, Route("pleroma/{sig}/{url}/{filename?}")]
+        public IActionResult ThumbnailPleromaStyle([Required] string url, [Required] string sig)
         {
             throw new NotImplementedException();
         }
@@ -31,8 +40,8 @@ namespace SogigiMind.Controllers.ApiControllers
         /// <summary>
         /// 指定された URL のサムネイルの作成を予約します。
         /// </summary>
-        [HttpPost("prefetch"), Authorize(Roles = SogigiMindRoles.AppServer)]
-        public IActionResult Prefetch([FromBody] IEnumerable<PrefetchRequestItem>? request)
+        [HttpPost("prefetch")]
+        public IActionResult Prefetch([FromBody, Required] IEnumerable<PrefetchRequestItem>? request)
         {
             throw new NotImplementedException();
         }
@@ -55,10 +64,13 @@ namespace SogigiMind.Controllers.ApiControllers
             public bool? IsPublic { get; set; }
 
             /// <summary>
-            /// The names of accounts mentioning the URL.
+            /// この画像を受信したアカウント
             /// </summary>
-            public IReadOnlyList<string?>? SourceAccounts { get; set; }
-            // TODO: SourceAccounts を使って、フォロワーがアクティブなときだけサムネイル生成をするようにする
+            /// <remarks>
+            /// 実際にプリフェッチを行うべきかの判断に使用する。
+            /// 直近にそのユーザーについてのセンシティブ推定を行っているなら、画像をプリフェッチし、推定も先に行っておく（今後実装する）。
+            /// </remarks>
+            public IReadOnlyList<string?>? Receivers { get; set; }
         }
     }
 }

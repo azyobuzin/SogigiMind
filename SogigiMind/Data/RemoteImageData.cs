@@ -13,11 +13,6 @@ namespace SogigiMind.Data
         [Required]
         public string Url { get; set; }
 
-        /// <summary>
-        /// prefetch または署名付きサムネイルリクエストが飛んできたことがあるかどうか
-        /// </summary>
-        public bool IsKnown { get; set; }
-
         public bool? IsSensitive { get; set; }
 
         public bool? IsPublic { get; set; }

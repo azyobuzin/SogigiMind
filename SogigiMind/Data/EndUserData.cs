@@ -2,8 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SogigiMind.Data
 {
@@ -12,9 +10,6 @@ namespace SogigiMind.Data
         public long Id { get; set; }
 
         public string Acct { get; set; }
-
-        [Required, Column(TypeName = "jsonb")]
-        public string Settings { get; set; }
 
         public DateTime InsertedAt { get; set; }
 
