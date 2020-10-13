@@ -66,8 +66,8 @@ namespace SogigiMind
 
         private void ConfigureDataAccessObjects(IServiceCollection services)
         {
-            services.AddScoped<IFetchAttemptDao, DefaultFetchAttemptDao>();
-            services.AddScoped<IRemoteImageDao, DefaultRemoteImageDao>();
+            services.AddScoped<IFetchAttemptDao, EfFetchAttemptDao>();
+            services.AddScoped<IRemoteImageDao, PostgresRemoteImageDao>();
         }
 
         private void ConfigureUseCases(IServiceCollection services)

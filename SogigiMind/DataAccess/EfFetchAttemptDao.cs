@@ -9,12 +9,12 @@ using SogigiMind.Logics;
 
 namespace SogigiMind.DataAccess
 {
-    public class DefaultFetchAttemptDao : IFetchAttemptDao
+    public class EfFetchAttemptDao : IFetchAttemptDao
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly ISystemClock _clock;
 
-        public DefaultFetchAttemptDao(ApplicationDbContext dbContext, ISystemClock? clock)
+        public EfFetchAttemptDao(ApplicationDbContext dbContext, ISystemClock? clock)
         {
             this._dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
             this._clock = clock ?? new SystemClock();
